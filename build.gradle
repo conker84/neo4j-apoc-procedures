@@ -24,7 +24,7 @@ idea {
 }
 
 group = 'org.neo4j.procedure'
-version = '3.4.0.4'
+version = '3.5.0.0'
 archivesBaseName = 'apoc'
 
 jar {
@@ -37,7 +37,7 @@ description = """neo4j-apoc-procedures"""
 
 ext {
     // NB: due to version.json generation by parsing this file, the next line must not have any if/then/else logic
-    neo4jVersion = "3.4.10"
+    neo4jVersion = "3.5.0-beta01"
     // instead we apply the override logic here
     neo4jVersionEffective = project.hasProperty("neo4jVersionOverride") ? project.getProperty("neo4jVersionOverride") : neo4jVersion
 }
@@ -68,7 +68,7 @@ dependencies {
     testCompile group: 'com.sun.mail', name: 'javax.mail', version: '1.6.0'
     compile group: 'com.jayway.jsonpath', name: 'json-path', version: '2.2.0'
     compile group: 'org.hdrhistogram', name: 'HdrHistogram', version: '2.1.9'
-    compile group: 'org.neo4j.driver', name: 'neo4j-java-driver', version: '1.6.3'
+    compile group: 'org.neo4j.driver', name: 'neo4j-java-driver', version: '1.4.4'
     compileOnly group: 'net.biville.florent', name: 'neo4j-sproc-compiler', version: '1.2'
 
     compile group: 'com.novell.ldap', name: 'jldap', version: '2009-10-07'
@@ -79,8 +79,6 @@ dependencies {
     testCompile "org.apache.poi:poi-ooxml:3.17"
 
     compile 'org.jsoup:jsoup:1.11.3'
-
-    compile group: 'org.roaringbitmap', name: 'RoaringBitmap', version: '0.7.17'
 
     testCompile 'net.sourceforge.jexcelapi:jxl:2.6.12'
 
@@ -97,6 +95,8 @@ dependencies {
 
     testCompile group: 'org.neo4j', name: 'neo4j-common', version: neo4jVersionEffective, classifier: "tests"
     testCompile group: 'org.neo4j', name: 'neo4j-com', version: neo4jVersionEffective, classifier: "tests"
+    testCompile group: 'org.neo4j.community', name: 'it-test-support', version: neo4jVersionEffective // , classifier: "tests"
+
     testCompile group: 'org.neo4j', name: 'neo4j-causal-clustering', version: neo4jVersionEffective, classifier: "tests"
     testCompile group: 'org.neo4j', name: 'neo4j-kernel', version: neo4jVersionEffective, classifier: "tests"
     testCompile group: 'org.neo4j', name: 'neo4j-io', version: neo4jVersionEffective, classifier: "tests"
@@ -109,7 +109,6 @@ dependencies {
         exclude group: 'org.eclipse.jetty'
         exclude group: 'org.eclipse.jetty.aggregate'
         exclude group: 'com.sun.jersey'
-        exclude group: 'org.apache.hive', module: 'hive-service'
     }
     compileOnly group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.5', withoutServers
     testCompile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.5', withoutServers
@@ -120,40 +119,22 @@ dependencies {
     compileOnly 'org.mongodb:mongodb-driver:3.2.2'
     testCompile 'org.mongodb:mongodb-driver:3.2.2'
 
-    compileOnly group: 'com.couchbase.client', name: 'java-client', version: '2.7.2'
-    testCompile group: 'com.couchbase.client', name: 'java-client', version: '2.7.2'
-
-//    compileOnly 'com.couchbase.client:java-client:2.5.9'
-//    testCompile 'com.couchbase.client:java-client:2.5.9'
+    compileOnly 'com.couchbase.client:java-client:2.5.9'
+    testCompile 'com.couchbase.client:java-client:2.5.9'
 
     compileOnly group: 'org.neo4j', name: 'neo4j', version: neo4jVersionEffective
     compileOnly group: 'org.neo4j', name: 'neo4j-enterprise', version: neo4jVersionEffective
     compileOnly group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: '1.9.7'
     testCompile group: 'org.codehaus.jackson', name: 'jackson-mapper-asl', version: '1.9.7'
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.7'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.0'
     compile group: 'com.opencsv', name: 'opencsv', version: '4.2' 
     compileOnly group: 'org.ow2.asm', name: 'asm', version: '5.0.2'
     compile group: 'com.github.javafaker', name: 'javafaker', version: '0.10'
-
-    // schemacrawler
-    compile group: 'us.fatehi', name: 'schemacrawler', version: '15.04.01'
-    testCompile group: 'us.fatehi', name: 'schemacrawler-mysql', version: '15.04.01'
-
-
-    testCompile group: 'org.apache.hive', name: 'hive-jdbc', version: '1.2.2', withoutServers
 
     compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     compile group: 'org.apache.commons', name: 'commons-text', version: '1.2'
     jmh group: 'org.neo4j', name: 'neo4j-lucene-index', version: neo4jVersionEffective
     jmh group: 'org.neo4j', name: 'neo4j-kernel', version: neo4jVersionEffective, classifier: "tests"
-
-    // Test Containers
-    testCompile group: 'org.testcontainers', name: 'testcontainers', version: '1.10.2'
-    testCompile group: 'org.testcontainers', name: 'elasticsearch', version: '1.10.2'
-    testCompile group: 'org.testcontainers', name: 'couchbase', version: '1.10.2'
-
-    testCompile group: 'org.testcontainers', name: 'mysql', version: '1.10.2'
-
 
     configurations.all {
         exclude group: 'org.slf4j', module: 'slf4j-nop'
@@ -221,16 +202,16 @@ asciidoctor {
     sources { include 'index.adoc' }
     outputDir = file('build/docs')
     attributes  'apoc-version' : version,
-                'apoc-release' : "3.4.0.4",
+                'apoc-release' : "3.5.0.0",
                 'neo4j-version' : neo4jVersionEffective,
-                'branch' : "3.4"
+                'branch' : "3.5"
 }
 
 asciidoctor.doLast {
     copy {
         from 'build/docs/html5/index.html'
         into "build/docs"
-        rename { String filename -> filename.replace("index","index34") }
+        rename { String filename -> filename.replace("index","index35") }
     }
 }
 assemble.dependsOn(asciidoctor)

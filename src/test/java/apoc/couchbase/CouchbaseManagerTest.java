@@ -15,6 +15,7 @@ import static apoc.couchbase.CouchbaseTestUtils.*;
 /**
  * Created by alberto.delazzari on 24/08/2018.
  */
+@Ignore
 public class CouchbaseManagerTest {
 
     @Rule

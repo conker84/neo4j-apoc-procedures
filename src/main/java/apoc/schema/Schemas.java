@@ -2,28 +2,25 @@ package apoc.schema;
 
 import apoc.result.AssertSchemaResult;
 import apoc.result.ConstraintRelationshipInfo;
-import apoc.result.GraphResult;
 import apoc.result.IndexConstraintNodeInfo;
-import apoc.util.Util;
 import org.apache.commons.lang3.StringUtils;
-import org.neo4j.graphdb.*;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.schema.ConstraintDefinition;
 import org.neo4j.graphdb.schema.ConstraintType;
 import org.neo4j.graphdb.schema.IndexDefinition;
 import org.neo4j.graphdb.schema.Schema;
 import org.neo4j.helpers.collection.Iterables;
 import org.neo4j.internal.kernel.api.*;
-import org.neo4j.internal.kernel.api.exceptions.LabelNotFoundKernelException;
-import org.neo4j.internal.kernel.api.schema.constraints.ConstraintDescriptor;
+import org.neo4j.internal.kernel.api.exceptions.schema.IndexNotFoundKernelException;
 import org.neo4j.kernel.api.KernelTransaction;
 import org.neo4j.kernel.api.SilentTokenNameLookup;
 import org.neo4j.kernel.api.Statement;
-import org.neo4j.kernel.api.exceptions.index.IndexNotFoundKernelException;
 import org.neo4j.procedure.*;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -38,22 +35,22 @@ public class Schemas {
 
     @Procedure(value = "apoc.schema.assert", mode = Mode.SCHEMA)
     @Description("apoc.schema.assert({indexLabel:[[indexKeys]], ...}, {constraintLabel:[constraintKeys], ...}, dropExisting : true) yield label, key, keys, unique, action - drops all other existing indexes and constraints when `dropExisting` is `true` (default is `true`), and asserts that at the end of the operation the given indexes and unique constraints are there, each label:key pair is considered one constraint/label. Non-constraint indexes can define compound indexes with label:[key1,key2...] pairings.")
-    public Stream<AssertSchemaResult> schemaAssert(@Name("indexes") Map<String, List<Object>> indexes, @Name("constraints") Map<String, List<Object>> constraints, @Name(value = "dropExisting", defaultValue = "true") boolean dropExisting) throws ExecutionException, InterruptedException {
+    public Stream<AssertSchemaResult> schemaAssert(@Name("indexes") Map<String, List<Object>> indexes, @Name("constraints") Map<String, List<String>> constraints, @Name(value = "dropExisting", defaultValue = "true") boolean dropExisting) throws ExecutionException, InterruptedException {
         return Stream.concat(
                 assertIndexes(indexes, dropExisting).stream(),
                 assertConstraints(constraints, dropExisting).stream());
     }
 
     @Procedure(value = "apoc.schema.nodes", mode = Mode.SCHEMA)
-    @Description("CALL apoc.schema.nodes([config]) yield name, label, properties, status, type")
-    public Stream<IndexConstraintNodeInfo> nodes(@Name(value = "config",defaultValue = "{}") Map<String,Object> config) throws IndexNotFoundKernelException {
-        return indexesAndConstraintsForNode(config);
+    @Description("CALL apoc.schema.nodes() yield name, label, properties, status, type")
+    public Stream<IndexConstraintNodeInfo> nodes() throws IndexNotFoundKernelException {
+        return indexesAndConstraintsForNode();
     }
 
     @Procedure(value = "apoc.schema.relationships", mode = Mode.SCHEMA)
-    @Description("CALL apoc.schema.relationships([config]) yield name, startLabel, type, endLabel, properties, status")
-    public Stream<ConstraintRelationshipInfo> relationships(@Name(value = "config",defaultValue = "{}") Map<String,Object> config) {
-        return constraintsForRelationship(config);
+    @Description("CALL apoc.schema.relationships() yield name, startLabel, type, endLabel, properties, status")
+    public Stream<ConstraintRelationshipInfo> relationships() {
+        return constraintsForRelationship();
     }
 
     @UserFunction(value = "apoc.schema.node.indexExists")
@@ -74,15 +71,19 @@ public class Schemas {
         return constraintsExistsForRelationship(type, propertyNames);
     }
 
-    public List<AssertSchemaResult> assertConstraints(Map<String, List<Object>> constraints0, boolean dropExisting) throws ExecutionException, InterruptedException {
-        Map<String, List<Object>> constraints = copyMapOfObjects(constraints0);
+    public List<AssertSchemaResult> assertConstraints(Map<String, List<String>> constraints0, boolean dropExisting) throws ExecutionException, InterruptedException {
+        Map<String, List<String>> constraints = copy(constraints0);
         List<AssertSchemaResult> result = new ArrayList<>(constraints.size());
         Schema schema = db.schema();
 
         for (ConstraintDefinition definition : schema.getConstraints()) {
-            String label = definition.isConstraintType(ConstraintType.RELATIONSHIP_PROPERTY_EXISTENCE) ? definition.getRelationshipType().name() : definition.getLabel().name();
-            AssertSchemaResult info = new AssertSchemaResult(label, Iterables.asList(definition.getPropertyKeys())).unique();
-            if (!constraints.containsKey(label) || !constraints.get(label).remove(info.key)) {
+            if (!definition.isConstraintType(ConstraintType.UNIQUENESS)) continue;
+
+            String label = definition.getLabel().name();
+            String key = Iterables.single(definition.getPropertyKeys());
+
+            AssertSchemaResult info = new AssertSchemaResult(label, key).unique();
+            if (!constraints.containsKey(label) || !constraints.get(label).remove(key)) {
                 if (dropExisting) {
                     definition.drop();
                     info.dropped();
@@ -91,30 +92,14 @@ public class Schemas {
             result.add(info);
         }
 
-        for (Map.Entry<String, List<Object>> constraint : constraints.entrySet()) {
-            for (Object key : constraint.getValue()) {
-                if (key instanceof String) {
-                    result.add(createUniqueConstraint(schema, constraint.getKey(), key.toString()));
-                } else if (key instanceof List) {
-                    result.add(createNodeKeyConstraint(constraint.getKey(), (List<Object>) key));
-                }
+        for (Map.Entry<String, List<String>> constraint : constraints.entrySet()) {
+            for (String key : constraint.getValue()) {
+                schema.constraintFor(label(constraint.getKey())).assertPropertyIsUnique(key).create();
+                result.add(new AssertSchemaResult(constraint.getKey(), key).unique().created());
             }
         }
+
         return result;
-    }
-
-    private AssertSchemaResult createNodeKeyConstraint(String lbl, List<Object> keys) {
-        String keyProperties = keys.stream()
-                .map( property -> String.format("n.`%s`", property))
-                .collect( Collectors.joining( "," ) );
-        db.execute(String.format("CREATE CONSTRAINT ON (n:`%s`) ASSERT (%s) IS NODE KEY", lbl, keyProperties)).close();
-        List<String> keysToSting = keys.stream().map(Object::toString).collect(Collectors.toList());
-        return new AssertSchemaResult(lbl, keysToSting).unique().created();
-    }
-
-    private AssertSchemaResult createUniqueConstraint(Schema schema, String lbl, String key) {
-        schema.constraintFor(label(lbl)).assertPropertyIsUnique(key).create();
-        return new AssertSchemaResult(lbl, key).unique().created();
     }
 
     public List<AssertSchemaResult> assertIndexes(Map<String, List<Object>> indexes0, boolean dropExisting) throws ExecutionException, InterruptedException, IllegalArgumentException {
@@ -270,64 +255,17 @@ public class Schemas {
      *
      * @return
      */
-    private Stream<IndexConstraintNodeInfo> indexesAndConstraintsForNode(Map<String,Object> config) throws IndexNotFoundKernelException {
-
-        SchemaConfig schemaConfig = new SchemaConfig(config);
-        Set<String> includeLabels = schemaConfig.getLabels();
-        Set<String> excludeLabels = schemaConfig.getExcludeLabels();
-
+    private Stream<IndexConstraintNodeInfo> indexesAndConstraintsForNode() throws IndexNotFoundKernelException {
+        Schema schema = db.schema();
         try ( Statement ignore = tx.acquireStatement() ) {
             TokenRead tokenRead = tx.tokenRead();
             TokenNameLookup tokens = new SilentTokenNameLookup(tokenRead);
 
             SchemaRead schemaRead = tx.schemaRead();
-            Iterable<IndexReference> indexesIterator;
-            Iterable<ConstraintDescriptor> constraintsIterator;
-
-            if (includeLabels.isEmpty()) {
-                Iterable<IndexReference> allIndex = () -> schemaRead.indexesGetAll();
-                indexesIterator = StreamSupport.stream(allIndex.spliterator(),false)
-                        .filter(index -> {
-                            try {
-                                return !excludeLabels.contains(tokenRead.nodeLabelName(index.label()));
-                            } catch (LabelNotFoundKernelException e) {
-                                return false;
-                            }
-                        }).collect(Collectors.toList());
-
-                Iterable<ConstraintDescriptor> allConstraints = () -> schemaRead.constraintsGetAll();
-                constraintsIterator = StreamSupport.stream(allConstraints.spliterator(),false)
-                        .filter(constraint -> !excludeLabels.contains(constraint.schema().keyName(tokens)))
-                        .collect(Collectors.toList());
-            } else {
-                constraintsIterator = includeLabels.stream()
-                        .filter(label -> !excludeLabels.contains(label) && tokenRead.nodeLabel(label) != -1)
-                        .flatMap(label -> {
-                            Iterable<ConstraintDescriptor> indexesForLabel = () -> schemaRead.constraintsGetForLabel(tokenRead.nodeLabel(label));
-                            return StreamSupport.stream(indexesForLabel.spliterator(), false);
-                        })
-                        .collect(Collectors.toList());
-
-                indexesIterator = includeLabels.stream()
-                        .filter(label -> !excludeLabels.contains(label) && tokenRead.nodeLabel(label) != -1)
-                        .flatMap(label -> {
-                            Iterable<IndexReference> indexesForLabel = () -> schemaRead.indexesGetForLabel(tokenRead.nodeLabel(label));
-                            return StreamSupport.stream(indexesForLabel.spliterator(), false);
-                        })
-                        .collect(Collectors.toList());
-            }
-
-
-            Stream<IndexConstraintNodeInfo> constraintNodeInfoStream = StreamSupport.stream(constraintsIterator.spliterator(), false)
-                    .filter(constraintDescriptor -> constraintDescriptor.type().equals(ConstraintDescriptor.Type.EXISTS))
-                    .map(constraintDescriptor -> this.nodeInfoFromConstraintDescriptor(constraintDescriptor, tokens))
+            Iterable<IndexReference> indexesIterator = () -> schemaRead.indexesGetAll();
+            return StreamSupport.stream(indexesIterator.spliterator(), false)
+                   .map(indexReference -> this.nodeInfoFromIndexDefinition(indexReference, schemaRead, tokens))
                     .sorted(Comparator.comparing(i -> i.label));
-
-            Stream<IndexConstraintNodeInfo> indexNodeInfoStream = StreamSupport.stream(indexesIterator.spliterator(), false)
-                    .map(indexReference -> this.nodeInfoFromIndexDefinition(indexReference, schemaRead, tokens))
-                    .sorted(Comparator.comparing(i -> i.label));
-
-            return Stream.of(constraintNodeInfoStream, indexNodeInfoStream).flatMap(e -> e);
         }
     }
 
@@ -336,64 +274,12 @@ public class Schemas {
      *
      * @return
      */
-    private Stream<ConstraintRelationshipInfo> constraintsForRelationship(Map<String,Object> config) {
+    private Stream<ConstraintRelationshipInfo> constraintsForRelationship() {
         Schema schema = db.schema();
 
-        SchemaConfig schemaConfig = new SchemaConfig(config);
-        Set<String> includeRelationships = schemaConfig.getRelationships();
-        Set<String> excludeRelationships = schemaConfig.getExcludeRelationships();
-
-        try ( Statement ignore = tx.acquireStatement() ) {
-            TokenRead tokenRead = tx.tokenRead();
-            Iterable<ConstraintDefinition> constraintsIterator;
-
-            if(!includeRelationships.isEmpty()) {
-                constraintsIterator = includeRelationships.stream()
-                        .filter(type -> !excludeRelationships.contains(type) && tokenRead.relationshipType(type) != -1)
-                        .flatMap(type -> {
-                            Iterable<ConstraintDefinition> constraintsForType = schema.getConstraints(RelationshipType.withName(type));
-                            return StreamSupport.stream(constraintsForType.spliterator(), false);
-                        })
-                        .collect(Collectors.toList());
-            } else {
-                Iterable<ConstraintDefinition> allConstraints = schema.getConstraints();
-                constraintsIterator = StreamSupport.stream(allConstraints.spliterator(),false)
-                        .filter(index -> !excludeRelationships.contains(index.getRelationshipType().name()))
-                        .collect(Collectors.toList());
-            }
-
-            Stream<ConstraintRelationshipInfo> constraintRelationshipInfoStream = StreamSupport.stream(constraintsIterator.spliterator(), false)
-                    .filter(constraintDefinition -> constraintDefinition.isConstraintType(ConstraintType.RELATIONSHIP_PROPERTY_EXISTENCE))
-                    .map(this::relationshipInfoFromConstraintDefinition);
-
-            return constraintRelationshipInfoStream;
-        }
-    }
-
-    /**
-     * ConstraintInfo info from ConstraintDescriptor
-     *
-     * @param constraintDescriptor
-     * @param tokens
-     * @return
-     */
-    private IndexConstraintNodeInfo nodeInfoFromConstraintDescriptor(ConstraintDescriptor constraintDescriptor, TokenNameLookup tokens) {
-        String labelName =  tokens.labelGetName(constraintDescriptor.schema().keyId());
-        List<String> properties = new ArrayList<>();
-        Arrays.stream(constraintDescriptor.schema().getPropertyIds()).forEach((i) -> properties.add(tokens.propertyKeyGetName(i)));
-        return new IndexConstraintNodeInfo(
-                // Pretty print for index name
-                String.format(":%s(%s)", labelName, StringUtils.join(properties, ",")),
-                labelName,
-                properties,
-                StringUtils.EMPTY,
-                ConstraintType.NODE_PROPERTY_EXISTENCE.toString(),
-                "NO FAILURE",
-                0,
-                0,
-                0,
-                constraintDescriptor.userDescription(tokens)
-        );
+        return StreamSupport.stream(schema.getConstraints().spliterator(), false)
+                .filter(constraintDefinition -> constraintDefinition.isConstraintType(ConstraintType.RELATIONSHIP_PROPERTY_EXISTENCE))
+                .map(this::relationshipInfoFromConstraintDefinition);
     }
 
     /**
@@ -401,11 +287,12 @@ public class Schemas {
      *
      * @param indexReference
      * @param schemaRead
-     * @param tokens
      * @return
      */
     private IndexConstraintNodeInfo nodeInfoFromIndexDefinition(IndexReference indexReference, SchemaRead schemaRead, TokenNameLookup tokens){
-        String labelName =  tokens.labelGetName(indexReference.label());
+        int[] labelIds = indexReference.schema().getEntityTokenIds();
+        if (labelIds.length != 1) throw new IllegalStateException("Index with more than one label");
+        String labelName =  tokens.labelGetName(labelIds[0]);
         List<String> properties = new ArrayList<>();
         Arrays.stream(indexReference.properties()).forEach((i) -> properties.add(tokens.propertyKeyGetName(i)));
         try {
