@@ -1,16 +1,14 @@
 package apoc.cypher;
 
 import apoc.ApocConfiguration;
-import org.neo4j.helpers.collection.MapUtil;
-import org.neo4j.kernel.AvailabilityGuard;
+import org.neo4j.kernel.availability.AvailabilityListener;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
 
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class CypherInitializer implements AvailabilityGuard.AvailabilityListener {
+public class CypherInitializer implements AvailabilityListener {
     private final GraphDatabaseAPI db;
     private final Log userLog;
 
