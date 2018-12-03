@@ -26,6 +26,7 @@ public class ExportConfig {
 
     private int batchSize = DEFAULT_BATCH_SIZE;
     private boolean silent = false;
+    private boolean useOptimizations = false;
     private String delim = DEFAULT_DELIM;
     private String quotes = DEFAULT_QUOTES;
     private boolean useTypes = false;
@@ -43,6 +44,8 @@ public class ExportConfig {
     public boolean isSilent() {
         return silent;
     }
+
+    public boolean isUseOptimizations() { return useOptimizations; }
 
     public char getDelimChar() {
         return delim.charAt(0);
@@ -75,6 +78,7 @@ public class ExportConfig {
         this.useTypes = toBoolean(config.get("useTypes"));
         this.caption = convertCaption(config.getOrDefault("caption", asList("name", "title", "label", "id")));
         this.nodesOfRelationships = toBoolean(config.get("nodesOfRelationships"));
+        this.useOptimizations = toBoolean(config.get("useOptimizations"));
         this.format = ExportFormat.fromString((String) config.getOrDefault("format", "neo4j-shell"));
         this.cypherFormat = CypherFormat.fromString((String) config.getOrDefault("cypherFormat", "create"));
         this.config = config;
