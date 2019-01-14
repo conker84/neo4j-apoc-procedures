@@ -20,13 +20,17 @@ public class ExportConfig {
     public static final String IF_NEEDED_QUUOTES = "ifNeeded";
 
     public static final int DEFAULT_BATCH_SIZE = 20000;
+    private static final int DEFAULT_UNWIND_BATCH_SIZE = 100;
     public static final String DEFAULT_DELIM = ",";
     public static final String DEFAULT_QUOTES = ALWAYS_QUOTES;
     private final boolean streamStatements;
 
+    public enum OptimizationType {NONE, UNWIND_BATCH};
+
+    private OptimizationType optimizationType;
     private int batchSize = DEFAULT_BATCH_SIZE;
+    private int unwindBatchSize = DEFAULT_UNWIND_BATCH_SIZE;
     private boolean silent = false;
-    private boolean useOptimizations = false;
     private String delim = DEFAULT_DELIM;
     private String quotes = DEFAULT_QUOTES;
     private boolean useTypes = false;
@@ -36,6 +40,7 @@ public class ExportConfig {
     private ExportFormat format;
     private CypherFormat cypherFormat;
     private final Map<String, Object> config;
+    private Map<String, Object> optimizations;
 
     public int getBatchSize() {
         return batchSize;
@@ -44,8 +49,6 @@ public class ExportConfig {
     public boolean isSilent() {
         return silent;
     }
-
-    public boolean isUseOptimizations() { return useOptimizations; }
 
     public char getDelimChar() {
         return delim.charAt(0);
@@ -66,9 +69,19 @@ public class ExportConfig {
 
     public ExportFormat getFormat() { return format; }
 
+<<<<<<< HEAD
     public Set<String> getCaption() { return caption; }
 
     public CypherFormat getCypherFormat() { return cypherFormat; }
+=======
+    public int getUnwindBatchSize() {
+        return ((Number)getOptimizations().getOrDefault("batchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
+    }
+
+    public CypherFormat getCypherFormat() {
+        return cypherFormat;
+    }
+>>>>>>> fixes #998_bis - Add a mode to export.cypher that batches updates
 
     public ExportConfig(Map<String,Object> config) {
         config = config != null ? config : Collections.emptyMap();
@@ -78,22 +91,29 @@ public class ExportConfig {
         this.useTypes = toBoolean(config.get("useTypes"));
         this.caption = convertCaption(config.getOrDefault("caption", asList("name", "title", "label", "id")));
         this.nodesOfRelationships = toBoolean(config.get("nodesOfRelationships"));
-        this.useOptimizations = toBoolean(config.get("useOptimizations"));
         this.format = ExportFormat.fromString((String) config.getOrDefault("format", "neo4j-shell"));
         this.cypherFormat = CypherFormat.fromString((String) config.getOrDefault("cypherFormat", "create"));
         this.config = config;
+        this.optimizations = (Map<String, Object>) config.getOrDefault("useOptimizations", Util.map());
         this.streamStatements = toBoolean(config.get("streamStatements")) || toBoolean(config.get("stream"));
         this.writeNodeProperties = toBoolean(config.get("writeNodeProperties"));
+        this.optimizationType = OptimizationType.valueOf(optimizations.getOrDefault("type", OptimizationType.UNWIND_BATCH.toString()).toString().toUpperCase());
         exportQuotes(config);
     }
 
     private void exportQuotes(Map<String, Object> config)
     {
         try {
+<<<<<<< HEAD
             this.quotes = (String) config.getOrDefault("quotes", DEFAULT_QUOTES);
 
             if ( !quotes.equals(ALWAYS_QUOTES) && !quotes.equals(NONE_QUOTES) && !quotes.equals(IF_NEEDED_QUUOTES) ) {
                 throw new RuntimeException("The string value of the field quote is not valid");
+=======
+            this.quotes = (String) config.getOrDefault("quotes",DEFAULT_QUOTES_TYPE);
+            if (quotes == null) {
+                quotes = DEFAULT_QUOTES_TYPE;
+>>>>>>> fixes #998_bis - Add a mode to export.cypher that batches updates
             }
 
         } catch (ClassCastException e) { // backward compatibility
@@ -155,4 +175,13 @@ public class ExportConfig {
     public long getTimeoutSeconds() {
         return Util.toLong(config.getOrDefault("timeoutSeconds",100));
     }
+
+    public Map<String, Object> getOptimizations() {
+        return optimizations;
+    }
+
+    public OptimizationType getOptimizationType() {
+        return optimizationType;
+    }
+
 }
