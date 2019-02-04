@@ -4,6 +4,7 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
@@ -31,8 +32,7 @@ public class SchemasTest {
 
     @Before
     public void setUp() throws Exception {
-        db = apocEnterpriseGraphDatabaseBuilder().newGraphDatabase();
-        //db = apocGraphDatabaseBuilder().newGraphDatabase();
+        db = apocGraphDatabaseBuilder().newGraphDatabase();
         registerProcedure(db, Schemas.class);
     }
 
@@ -293,9 +293,6 @@ public class SchemasTest {
         });
     }
 
-    /**
-     * This is only for version 3.2
-     */
     @Test
     public void testIndexOnMultipleProperties() {
         ignoreException(() -> {
@@ -353,9 +350,6 @@ public class SchemasTest {
         });
     }
 
-    /**
-     * This test fails for a Community Edition
-     */
     @Test
     public void testPropertyExistenceConstraintOnNode() {
         ignoreException(() -> {
@@ -372,9 +366,6 @@ public class SchemasTest {
         }, QueryExecutionException.class);
     }
 
-    /**
-     * This test fails for a Community Edition
-     */
     @Test
     public void testConstraintExistsOnRelationship() {
         ignoreException(() -> {
@@ -388,9 +379,6 @@ public class SchemasTest {
         }, QueryExecutionException.class);
     }
 
-    /**
-     * This test fails for a Community Edition
-     */
     @Test
     public void testSchemaRelationships() {
         ignoreException(() -> {
@@ -407,9 +395,6 @@ public class SchemasTest {
         }, QueryExecutionException.class);
     }
 
-    /*
-      This is only for 3.2+
-    */
     @Test
     public void testDropCompoundIndexWhenUsingDropExisting() throws Exception {
         db.execute("CREATE INDEX ON :Foo(bar,baa)").close();
@@ -426,9 +411,6 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
     public void testDropCompoundIndexAndRecreateWithDropExisting() throws Exception {
         db.execute("CREATE INDEX ON :Foo(bar,baa)").close();
@@ -445,9 +427,6 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
     public void testDoesntDropCompoundIndexWhenSupplyingSameCompoundIndex() throws Exception {
         db.execute("CREATE INDEX ON :Foo(bar,baa)").close();
@@ -488,9 +467,6 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
     public void testDropIndexAndCreateCompoundIndexWhenUsingDropExisting() throws Exception {
         db.execute("CREATE INDEX ON :Foo(bar)").close();
@@ -513,9 +489,6 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
     public void testDropCompoundIndexAndCreateCompoundIndexWhenUsingDropExisting() throws Exception {
         db.execute("CREATE INDEX ON :Foo(bar,baa)").close();
@@ -538,10 +511,8 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
+    @Ignore("NODE KEY is enterprise only")
     public void testDropNodeKeyConstraintAndCreateNodeKeyConstraintWhenUsingDropExisting() throws Exception {
         db.execute("CREATE CONSTRAINT ON (f:Foo) ASSERT (f.bar,f.foo) IS NODE KEY").close();
         testResult(db, "CALL apoc.schema.assert(null,{Foo:[['bar','foo']]})", (result) -> {
@@ -563,10 +534,8 @@ public class SchemasTest {
         }
     }
 
-    /*
-        This is only for 3.2+
-    */
     @Test
+    @Ignore("NODE KEY is enterprise only")
     public void testDropSchemaWithNodeKeyConstraintWhenUsingDropExisting() throws Exception {
         db.execute("CREATE CONSTRAINT ON (f:Foo) ASSERT (f.foo, f.bar) IS NODE KEY").close();
         testCall(db, "CALL apoc.schema.assert(null,null)", (r) -> {
@@ -582,6 +551,7 @@ public class SchemasTest {
     }
 
     @Test
+    @Ignore("property exist constraints are enterprise only")
     public void testDropConstraintExistsPropertyNode() throws Exception {
         db.execute("CREATE CONSTRAINT ON (m:Movie) ASSERT exists(m.title)").close();
         testCall(db, "CALL apoc.schema.assert({},{})", (r) -> {
@@ -597,6 +567,7 @@ public class SchemasTest {
     }
 
     @Test
+    @Ignore("property exist constraints are enterprise only")
     public void testDropConstraintExistsPropertyRelationship() throws Exception {
         db.execute("CREATE CONSTRAINT ON ()-[acted:Acted]->() ASSERT exists(acted.since)").close();
         testCall(db, "CALL apoc.schema.assert({},{})", (r) -> {

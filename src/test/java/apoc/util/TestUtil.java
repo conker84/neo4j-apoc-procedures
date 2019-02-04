@@ -1,11 +1,9 @@
 package apoc.util;
 
-import org.apache.commons.io.FileDeleteStrategy;
 import org.hamcrest.Matcher;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.graphdb.factory.EnterpriseGraphDatabaseFactory;
 import org.neo4j.graphdb.factory.GraphDatabaseBuilder;
 import org.neo4j.graphdb.factory.GraphDatabaseSettings;
 import org.neo4j.internal.kernel.api.exceptions.KernelException;
@@ -13,10 +11,7 @@ import org.neo4j.kernel.impl.proc.Procedures;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
-import java.io.File;
 import java.net.Socket;
-import java.net.URL;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -38,10 +33,10 @@ public class TestUtil {
     public static void testCall(GraphDatabaseService db, String call,Map<String,Object> params, Consumer<Map<String, Object>> consumer) {
         testResult(db, call, params, (res) -> {
             try {
-                assertTrue("Should have an element",res.hasNext());
+                assertTrue(res.hasNext());
                 Map<String, Object> row = res.next();
                 consumer.accept(row);
-                assertFalse("Should not have a second element",res.hasNext());
+                assertFalse(res.hasNext());
             } catch(Throwable t) {
                 printFullStackTrace(t);
                 throw t;
@@ -152,14 +147,6 @@ public class TestUtil {
                 .setConfig(GraphDatabaseSettings.procedure_unrestricted,"apoc.*");
     }
 
-    public static GraphDatabaseBuilder apocEnterpriseGraphDatabaseBuilder() throws Exception {
-        File storeDir = Paths.get(System.getProperty( "java.io.tmpdir").concat(File.separator).concat("neo4j-enterprise")).toFile();
-        FileDeleteStrategy.FORCE.delete(storeDir);
-        return new EnterpriseGraphDatabaseFactory().newEmbeddedDatabaseBuilder(storeDir)
-                .setConfig("dbms.backup.enabled","false")
-                .setConfig(GraphDatabaseSettings.procedure_unrestricted,"apoc.*");
-    }
-
     public static boolean serverListening(String host, int port)
     {
         try (Socket s = new Socket(host, port)){
@@ -167,9 +154,5 @@ public class TestUtil {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    public static URL getUrlFileName(String filename) {
-        return Thread.currentThread().getContextClassLoader().getResource(filename);
     }
 }
