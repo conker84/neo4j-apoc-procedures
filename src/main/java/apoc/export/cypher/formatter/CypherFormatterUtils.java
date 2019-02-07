@@ -186,7 +186,7 @@ public class CypherFormatterUtils {
         return result;
     }
 
-    private static String formatPropertyName(String id, String prop, Object value, boolean jsonStyle) {
+    public static String formatPropertyName(String id, String prop, Object value, boolean jsonStyle) {
         return (id != null && !"".equals(id) ? id + "." : "") + "`" + prop + "`" + (jsonStyle ? ":" : "=" ) + toString(value);
     }
 

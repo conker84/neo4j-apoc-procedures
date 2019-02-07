@@ -1,11 +1,7 @@
 package apoc.export.cypher;
 
-<<<<<<< HEAD
-import apoc.export.cypher.formatter.CypherFormatterUtils;
-import apoc.export.util.*;
-=======
->>>>>>> fixes #998_bis - Add a mode to export.cypher that batches updates
 import apoc.export.cypher.formatter.CypherFormatter;
+import apoc.export.cypher.formatter.CypherFormatterUtils;
 import apoc.export.util.ExportConfig;
 import apoc.export.util.ExportFormat;
 import apoc.export.util.Reporter;
@@ -106,7 +102,7 @@ public class MultiStatementCypherSubGraphExporter {
 
     private void exportNodesUnwindBatch(PrintWriter out, Reporter reporter) {
         if (graph.getNodes().iterator().hasNext()) {
-            appendNodesUnwindBatch(out, reporter);
+            this.cypherFormat.statementForNodes(graph.getNodes(), uniqueConstraints, indexNames, exportConfig, out, reporter);
             out.flush();
         }
     }
@@ -130,10 +126,6 @@ public class MultiStatementCypherSubGraphExporter {
         }
     }
 
-    private void appendNodesUnwindBatch(PrintWriter out, Reporter reporter) {
-        this.cypherFormat.statementForSameNodes(graph.getNodes(), uniqueConstraints, indexedProperties, indexNames, exportConfig, out, reporter);
-    }
-
     // ---- Relationships ----
 
     private void exportRelationships(PrintWriter out, Reporter reporter, int batchSize) {
@@ -147,7 +139,7 @@ public class MultiStatementCypherSubGraphExporter {
 
     private void exportRelationshipsUnwindBatch(PrintWriter out, Reporter reporter) {
         if (graph.getRelationships().iterator().hasNext()) {
-            appendRelationshipOptimized(out, reporter);
+            this.cypherFormat.statementForRelationships(graph.getRelationships(), uniqueConstraints, indexNames, exportConfig, out, reporter);
             out.flush();
         }
     }
@@ -168,10 +160,6 @@ public class MultiStatementCypherSubGraphExporter {
             out.println(cypher);
             reporter.update(0, 1, Iterables.count(rel.getPropertyKeys()));
         }
-    }
-
-    private void appendRelationshipOptimized(PrintWriter out, Reporter reporter) {
-        this.cypherFormat.statementForSameRelationship(graph.getRelationships(), uniqueConstraints, indexedProperties, indexNames, exportConfig, out, reporter);
     }
 
     // ---- Schema ----

@@ -27,10 +27,10 @@ public class UpdateAllCypherFormatter extends AbstractCypherFormatter implements
 	}
 
 	@Override
-	public void statementForSameNodes(Iterable<Node> node, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
+	public void statementForNodes(Iterable<Node> node, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
 	}
 
 	@Override
-	public void statementForSameRelationship(Iterable<Relationship> relationship, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
+	public void statementForRelationships(Iterable<Relationship> relationship, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
 	}
 }

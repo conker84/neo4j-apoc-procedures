@@ -9,7 +9,9 @@ import org.neo4j.graphdb.Relationship;
 import java.io.PrintWriter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * @author AgileLARUS
@@ -18,83 +20,77 @@ import java.util.stream.Collectors;
  */
 public class CreateCypherFormatter extends AbstractCypherFormatter implements CypherFormatter {
 
-	@Override
+    @Override
     public String statementForNode(Node node, Map<String, Set<String>> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames) {
-		StringBuilder result = new StringBuilder(100);
-		result.append("CREATE (");
-		String labels = CypherFormatterUtils.formatAllLabels(node, uniqueConstraints, indexNames);
-		if (!labels.isEmpty()) {
-			result.append(labels);
-		}
-		if (node.getPropertyKeys().iterator().hasNext()) {
-			result.append(" {");
-			result.append(CypherFormatterUtils.formatNodeProperties("", node, uniqueConstraints, indexNames, true));
-			result.append("}");
-		}
-		result.append(");");
-		return result.toString();
-	}
-
-	@Override
-    public String statementForRelationship(Relationship relationship, Map<String, Set<String>> uniqueConstraints, Set<String> indexedProperties) {
-		StringBuilder result = new StringBuilder(100);
-		result.append("MATCH ");
-		result.append(CypherFormatterUtils.formatNodeLookup("n1", relationship.getStartNode(), uniqueConstraints, indexedProperties));
-		result.append(", ");
-		result.append(CypherFormatterUtils.formatNodeLookup("n2", relationship.getEndNode(), uniqueConstraints, indexedProperties));
-		result.append(" CREATE (n1)-[r:" + CypherFormatterUtils.quote(relationship.getType().name()));
-		if (relationship.getPropertyKeys().iterator().hasNext()) {
-			result.append(" {");
-			result.append(CypherFormatterUtils.formatRelationshipProperties("", relationship, true));
-			result.append("}");
-		}
-		result.append("]->(n2);");
+        StringBuilder result = new StringBuilder(100);
+        result.append("CREATE (");
+        String labels = CypherFormatterUtils.formatAllLabels(node, uniqueConstraints, indexNames);
+        if (!labels.isEmpty()) {
+            result.append(labels);
+        }
+        if (node.getPropertyKeys().iterator().hasNext()) {
+            result.append(" {");
+            result.append(CypherFormatterUtils.formatNodeProperties("", node, uniqueConstraints, indexNames, true));
+            result.append("}");
+        }
+        result.append(");");
         return result.toString();
     }
 
     @Override
-    public void statementForSameNodes(Iterable<Node> nodes, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
-        // Map<Labels, NodeList>
-        Map<String, List<Node>> map = new HashMap<>();
+    public String statementForRelationship(Relationship relationship,  Map<String, Set<String>> uniqueConstraints, Set<String> indexedProperties) {
+        StringBuilder result = new StringBuilder(100);
+        result.append("MATCH ");
+        result.append(CypherFormatterUtils.formatNodeLookup("n1", relationship.getStartNode(), uniqueConstraints, indexedProperties));
+        result.append(", ");
+        result.append(CypherFormatterUtils.formatNodeLookup("n2", relationship.getEndNode(), uniqueConstraints, indexedProperties));
+        result.append(" CREATE (n1)-[r:" + CypherFormatterUtils.quote(relationship.getType().name()));
+        if (relationship.getPropertyKeys().iterator().hasNext()) {
+            result.append(" {");
+            result.append(CypherFormatterUtils.formatRelationshipProperties("", relationship, true));
+            result.append("}");
+        }
+        result.append("]->(n2);");
+        return result.toString();
+    }
 
-        // Map<Labels, Ids>
-        Map<String, Set<String>> mapIds = new HashMap<>();
-
+    @Override
+    public void statementForNodes(Iterable<Node> nodes, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
         int batchSize = exportConfig.getBatchSize();
+        ExportConfig.OptimizationType exportType = exportConfig.getOptimizationType();
 
         AtomicInteger nodeCount = new AtomicInteger(0);
-        nodes.forEach(node -> {
-            nodeCount.incrementAndGet();
+        Function<Node, Map.Entry<String, Set<String>>> keyMapper = (node) -> {
             String key = CypherFormatterUtils.formatAllLabels(node, uniqueConstraints, indexNames);
-            map.compute(key, (k, v) -> {
-                if (v == null) {
-                    v = new ArrayList<>();
-                }
-                v.add(node);
-                return v;
-            });
-            mapIds.put(key, CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).keySet());
-        });
+            return new AbstractMap.SimpleImmutableEntry<>(key, CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).keySet());
+        };
+        Map<Map.Entry<String, Set<String>>, List<Node>> nodeMap = StreamSupport.stream(nodes.spliterator(), false)
+                .collect(Collectors.groupingBy(keyMapper));
 
         AtomicInteger propertiesCount = new AtomicInteger(0);
-        AtomicInteger batchCountBegin = new AtomicInteger(0);
-        AtomicInteger batchCountCommit = new AtomicInteger(0);
+        AtomicInteger batchCount = new AtomicInteger(0);
 
         int unwindBatchSize = exportConfig.getUnwindBatchSize();
-
-        map.forEach((labels, nodeList) -> {
-            boolean begin = batchCountBegin.getAndAdd(nodeList.size()) % batchSize == 0;
-            boolean commit = batchCountCommit.addAndGet(nodeList.size()) % batchSize == 0;
-
-            if (begin) {
-                out.append(exportConfig.getFormat().begin());
-            }
-
+        nodeMap.forEach((key, nodeList) -> {
             int nodeListSize = nodeList.size();
+            nodeCount.addAndGet(nodeListSize);
             for (int i = 0; i < nodeListSize; i++) {
-                if (i % unwindBatchSize == 0) {
-                    out.append("UNWIND [");
+                switch (exportType){
+                    case UNWIND_BATCH_PARAMS:
+                        if (batchCount.get() % batchSize == 0) {
+                            out.append(":param rows => [");
+                        }
+                        break;
+                    default:
+                        if (batchCount.get() % unwindBatchSize == 0) {
+                            if (batchCount.get() % batchSize == 0) {
+                                out.append(exportConfig.getFormat().begin());
+                            }
+                            out.append("UNWIND [");
+                        }
+                        break;
                 }
+                batchCount.incrementAndGet();
 
                 Node node = nodeList.get(i);
 
@@ -103,7 +99,8 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
                 out.append("{");
 
                 // id
-                out.append(CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints).entrySet().stream()
+                Map<String, Object> idMap = CypherFormatterUtils.getNodeIdProperties(node, uniqueConstraints);
+                out.append(idMap.entrySet().stream()
                         .map(e -> String.format("`%s`: %s", e.getKey(), CypherFormatterUtils.toString(e.getValue()))).collect(Collectors.joining(",")));
 
                 // properties
@@ -111,7 +108,11 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
                 out.append("properties: ");
                 out.append("{");
                 if (!props.isEmpty()) {
-                    out.append(CypherFormatterUtils.formatProperties("", props, true).substring(2));
+                    String properties = props.entrySet().stream()
+                            .filter(es -> !idMap.containsKey(es.getKey()))
+                            .map(es -> CypherFormatterUtils.formatPropertyName("", es.getKey(), es.getValue(), true))
+                            .collect(Collectors.joining(", "));
+                    out.append(properties);
                     propertiesCount.addAndGet(props.size());
                 }
                 out.append("}");
@@ -119,24 +120,44 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
                 // end element
                 out.append("}");
                 boolean isEnd = i == nodeListSize - 1;
-                if (isEnd || (i + 1) % unwindBatchSize == 0) {
-                    out.append("] as row ");
-                    out.append(StringUtils.LF);
-                    out.append("MERGE ");
-                    out.append(String.format("(n%s{", labels));
-                    out.append(mapIds.get(labels).stream().map(s -> String.format("`%s`: row.`%s`", s, s)).collect(Collectors.joining(",")));
-                    out.append("}) SET n += row.properties;");
-                    out.append(StringUtils.LF);
+                if (isEnd || batchCount.get() % unwindBatchSize == 0 || batchCount.get() % batchSize == 0) {
+                    int unwindLength = (i + 1) % unwindBatchSize;
+                    int unwindLeftOver = (unwindBatchSize - unwindLength) % unwindBatchSize;
+                    batchCount.addAndGet(unwindLeftOver);
+                    switch (exportType){
+                        case UNWIND_BATCH_PARAMS:
+                            if(isEnd || batchCount.get() % batchSize == 0) {
+                                out.append("]");
+                                out.append(StringUtils.LF);
+                                out.append(exportConfig.getFormat().begin());
+                                out.append("UNWIND $rows AS row");
+                            }
+                            else{
+                                out.append(", ");
+                            }
+                            break;
+                        default:
+                            out.append("] as row ");
+                            break;
+                    }
+                    if(isEnd || batchCount.get() % batchSize == 0 || exportType != ExportConfig.OptimizationType.UNWIND_BATCH_PARAMS) {
+                        out.append(StringUtils.LF);
+                        out.append("MERGE ");
+                        out.append(String.format("(n%s{", key.getKey()));
+                        out.append(key.getValue().stream().map(s -> String.format("`%s`: row.`%s`", s, s)).collect(Collectors.joining(",")));
+                        out.append("}) SET n += row.properties;");
+                        out.append(StringUtils.LF);
+                        if(exportType == ExportConfig.OptimizationType.UNWIND_BATCH_PARAMS || (batchCount.get() % batchSize == 0)){
+                            out.append(exportConfig.getFormat().commit());
+                        }
+                    }
+
                 } else {
                     out.append(", ");
                 }
             }
-            if (commit) {
-                out.append(exportConfig.getFormat().commit());
-            }
         });
-
-        if (batchCountCommit.get() % batchSize != 0) {
+        if (batchCount.get() % batchSize != 0) {
             out.append(exportConfig.getFormat().commit());
         }
 
@@ -144,65 +165,59 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
     }
 
     @Override
-    public void statementForSameRelationship(Iterable<Relationship> relationship, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
-        // Map<Path(map{start,rel,end}),RelList>
-        Map<Map<String, String>, List<Relationship>> map = new HashMap<>();
-
-        // Map<Labels, Ids>
-        Map<String, Set<String>> mapIds = new HashMap<>();
-
+    public void statementForRelationships(Iterable<Relationship> relationship, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter) {
         int batchSize = exportConfig.getBatchSize();
+        ExportConfig.OptimizationType exportType = exportConfig.getOptimizationType();
 
         AtomicInteger relCount = new AtomicInteger(0);
 
-        relationship.forEach(rel -> {
-            relCount.incrementAndGet();
-            // define the start labels
+
+        Function<Relationship, Map<String, Object>> keyMapper = (rel) -> {
             Node start = rel.getStartNode();
             String startLabels = CypherFormatterUtils.formatAllLabels(start, uniqueConstraints, indexNames);
-            mapIds.put(startLabels, CypherFormatterUtils.getNodeIdProperties(start, uniqueConstraints).keySet());
 
             // define the end labels
             Node end = rel.getEndNode();
             String endLabels = CypherFormatterUtils.formatAllLabels(end, uniqueConstraints, indexNames);
-            mapIds.put(endLabels, CypherFormatterUtils.getNodeIdProperties(end, uniqueConstraints).keySet());
 
             // define the type
             String type = rel.getType().name();
 
             // create the path
-            Map<String,String> key = new HashMap<>();
-            key.put("start", startLabels);
+            Map<String, Object> key = new HashMap<>();
+            key.put("start", new AbstractMap.SimpleImmutableEntry<>(startLabels, CypherFormatterUtils.getNodeIdProperties(start, uniqueConstraints).keySet()));
             key.put("type", type);
-            key.put("end", endLabels);
-
-            map.compute(key, (k, v) -> {
-                if (v == null) {
-                    v = new ArrayList<>();
-                }
-                v.add(rel);
-                return v;
-            });
-        });
+            key.put("end", new AbstractMap.SimpleImmutableEntry<>(endLabels, CypherFormatterUtils.getNodeIdProperties(end, uniqueConstraints).keySet()));
+            return key;
+        };
+        Map<Map<String, Object>, List<Relationship>> concurrentMap = StreamSupport.stream(relationship.spliterator(), false)
+                .collect(Collectors.groupingBy(keyMapper));
 
         AtomicInteger propertiesCount = new AtomicInteger(0);
-        AtomicInteger batchCountBegin = new AtomicInteger(0);
-        AtomicInteger batchCountCommit = new AtomicInteger(0);
+        AtomicInteger batchCount = new AtomicInteger(0);
 
         int unwindBatchSize = exportConfig.getUnwindBatchSize();
 
-        map.forEach((path, relationshipList) -> {
-            boolean begin = batchCountBegin.getAndAdd(relationshipList.size()) % batchSize == 0;
-            boolean commit = batchCountCommit.addAndGet(relationshipList.size()) % batchSize == 0;
-
-            if (begin) {
-                out.append(exportConfig.getFormat().begin());
-            }
-
-            for (int i = 0; i < relationshipList.size(); i++) {
-                if (i % unwindBatchSize == 0) {
-                    out.append("UNWIND [");
+        concurrentMap.forEach((path, relationshipList) -> {
+            int relSize = relationshipList.size();
+            relCount.addAndGet(relSize);
+            for (int i = 0; i < relSize; i++) {
+                switch (exportType){
+                    case UNWIND_BATCH_PARAMS:
+                        if (batchCount.get() % batchSize == 0) {
+                            out.append(":param rows => [");
+                        }
+                        break;
+                    default:
+                        if (batchCount.get() % unwindBatchSize == 0) {
+                            if (batchCount.get() % batchSize == 0) {
+                                out.append(exportConfig.getFormat().begin());
+                            }
+                            out.append("UNWIND [");
+                        }
+                        break;
                 }
+                batchCount.incrementAndGet();
                 Relationship rel = relationshipList.get(i);
 
                 Map<String, Object> props = rel.getAllProperties();
@@ -239,42 +254,64 @@ public class CreateCypherFormatter extends AbstractCypherFormatter implements Cy
                 // end element
                 out.append("}");
 
-                boolean isEnd = i == relationshipList.size() - 1;
-                if (isEnd || (i + 1) % unwindBatchSize == 0) {
-                    out.append("] as row ");
+                boolean isEnd = i == relSize - 1;
+                if (isEnd || batchCount.get() % unwindBatchSize == 0) {
+                    int unwindLength = (i + 1) % unwindBatchSize;
+                    int unwindLeftOver = (unwindBatchSize - unwindLength) % unwindBatchSize;
+                    batchCount.addAndGet(unwindLeftOver);
+                    switch (exportType){
+                        case UNWIND_BATCH_PARAMS:
+                            if(isEnd || batchCount.get() % batchSize == 0) {
+                                out.append("]");
+                                out.append(StringUtils.LF);
+                                out.append(exportConfig.getFormat().begin());
+                                out.append("UNWIND $rows AS row");
+                            }
+                            else{
+                                out.append(", ");
+                            }
+                            break;
+                        default:
+                            out.append("] as row ");
+                            break;
+                    }
+                    if(isEnd || batchCount.get() % batchSize == 0 || exportType != ExportConfig.OptimizationType.UNWIND_BATCH_PARAMS) {
+                        out.append(StringUtils.LF);
+                        out.append("MATCH ");
 
-                    out.append(StringUtils.LF);
-                    out.append("MATCH ");
+                        // match start node
+                        Map.Entry<String, Set<String>> startEntry = (Map.Entry<String, Set<String>>) path.get("start");
+                        out.append(String.format("(start%s{", startEntry.getKey()));
+                        out.append(startEntry.getValue().stream().map(s -> String.format("`%s`: row.start.`%s`", s, s)).collect(Collectors.joining(",")));
+                        out.append("})");
 
-                    // match start node
-                    out.append(String.format("(start%s{", path.get("start")));
-                    out.append(mapIds.get(path.get("start")).stream().map(s -> String.format("`%s`: row.start.`%s`", s, s)).collect(Collectors.joining(",")));
-                    out.append("})");
+                        out.append(StringUtils.LF);
+                        out.append("MATCH ");
 
-                    out.append(", ");
+                        // match end node
+                        Map.Entry<String, Set<String>> endEntry = (Map.Entry<String, Set<String>>) path.get("end");
+                        out.append(String.format("(end%s{", endEntry.getKey()));
+                        out.append(endEntry.getValue().stream().map(s -> String.format("`%s`: row.end.`%s`", s, s)).collect(Collectors.joining(",")));
+                        out.append("})");
 
-                    // match end node
-                    out.append(String.format("(end%s{", path.get("end")));
-                    out.append(mapIds.get(path.get("end")).stream().map(s -> String.format("`%s`: row.end.`%s`", s, s)).collect(Collectors.joining(",")));
-                    out.append("})");
+                        out.append(StringUtils.LF);
 
-                    out.append(StringUtils.LF);
-
-                    // merge relationship
-                    out.append(String.format("MERGE (start)-[r:`%s`]->(end) SET r += row.properties;", path.get("type")));
-                    out.append(StringUtils.LF);
+                        // merge relationship
+                        out.append(String.format("MERGE (start)-[r:`%s`]->(end) SET r += row.properties;", path.get("type")));
+                        out.append(StringUtils.LF);
+                        if(exportType == ExportConfig.OptimizationType.UNWIND_BATCH_PARAMS || (batchCount.get() % batchSize == 0)){
+                            out.append(exportConfig.getFormat().commit());
+                        }
+                    }
                 } else {
                     out.append(", ");
                 }
             }
-            if (commit) {
-                out.append(exportConfig.getFormat().commit());
-            }
         });
-
-        if (batchCountCommit.get() % batchSize != 0) {
+        if (batchCount.get() % batchSize != 0) {
             out.append(exportConfig.getFormat().commit());
         }
+
         reporter.update(0, relCount.get(), propertiesCount.longValue());
     }
 }

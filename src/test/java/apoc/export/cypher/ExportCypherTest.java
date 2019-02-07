@@ -40,6 +40,7 @@ public class ExportCypherTest {
     public TestName testName = new TestName();
 
     private static final String OPTIMIZED = "Optimized";
+    private static final String ODD = "Odd";
 
     @Before
     public void setUp() throws Exception {
@@ -52,7 +53,20 @@ public class ExportCypherTest {
             db.execute("CREATE CONSTRAINT ON (b:Bar) ASSERT b.name IS UNIQUE").close();
             db.execute("CREATE (f:Foo {name:'foo', born:date('2018-10-31')})-[:KNOWS {since:2016}]->(b:Bar {name:'bar',age:42}),(c:Bar:Person {age:12}),(d:Bar {age:12})," +
                     " (t:Foo {name:'foo2', born:date('2017-09-29')})-[:KNOWS {since:2015}]->(e:Bar {name:'bar2',age:44}),({age:99})").close();
-        } else {
+        }
+        else if(testName.getMethodName().endsWith(ODD)) {
+            db.execute("CREATE INDEX ON :Foo(name)").close();
+            db.execute("CREATE INDEX ON :Bar(first_name, last_name)").close();
+            db.execute("CREATE CONSTRAINT ON (b:Bar) ASSERT b.name IS UNIQUE").close();
+            db.execute("CREATE (f:Foo {name:'foo', born:date('2018-10-31')})," +
+                    "(t:Foo {name:'foo2', born:date('2017-09-29')})," +
+                    "(g:Foo {name:'foo3', born:date('2016-03-12')})," +
+                    "(b:Bar {name:'bar',age:42})," +
+                    "(c:Bar {age:12})," +
+                    "(d:Bar {age:12})," +
+                    "(e:Bar {name:'bar2',age:44})," +
+                    "(f)-[:KNOWS {since:2016}]->(b)").close();
+        }else {
             db.execute("CREATE INDEX ON :Foo(name)").close();
             db.execute("CREATE INDEX ON :Bar(first_name, last_name)").close();
             db.execute("CREATE CONSTRAINT ON (b:Bar) ASSERT b.name IS UNIQUE").close();
@@ -400,8 +414,24 @@ public class ExportCypherTest {
     @Test
     public void testExportQueryCypherShellWithUnwindBatchSizeWithBatchSizeOptimized() throws Exception {
         File output = new File(directory, "allPlainOptimized.cypher");
-        TestUtil.testCall(db, "CALL apoc.export.cypher.all({file},{format:'cypher-shell', useOptimizations: { type: 'unwind_batch', batchSize: 100}, batchSize: 2})", map("file", output.getAbsolutePath()), (r) -> assertResultsOptimized(output, r));
+        TestUtil.testCall(db, "CALL apoc.export.cypher.all({file},{format:'cypher-shell', useOptimizations: { type: 'unwind_batch', batchSize: 2}, batchSize: 2})", map("file", output.getAbsolutePath()), (r) -> assertResultsOptimized(output, r));
         assertEquals(EXPECTED_QUERY_CYPHER_SHELL_OPTIMIZED_UNWIND, readFile(output));
+    }
+
+    @Test
+    public void testExportQueryCypherShellWithUnwindBatchSizeWithBatchSizeOdd() throws Exception {
+        File output = new File(directory, "allPlainOdd.cypher");
+        TestUtil.testCall(db, "CALL apoc.export.cypher.all({file},{format:'cypher-shell', useOptimizations: { type: 'unwind_batch', batchSize: 2}, batchSize: 2})", map("file", output.getAbsolutePath()), (r) -> assertResultsOdd(output, r));
+        System.out.println(readFile(output));
+        assertEquals(EXPECTED_QUERY_CYPHER_SHELL_OPTIMIZED_ODD, readFile(output));
+    }
+
+    @Test
+    public void testExportQueryCypherShellWithUnwindBatchSizeWithBatchSizeParamsOdd() throws Exception {
+        File output = new File(directory, "allPlainOdd.cypher");
+        TestUtil.testCall(db, "CALL apoc.export.cypher.all({file},{format:'cypher-shell', useOptimizations: { type: 'unwind_batch_params'}, batchSize: 2})", map("file", output.getAbsolutePath()), (r) -> assertResultsOdd(output, r));
+        System.out.println(readFile(output));
+        assertEquals(EXPECTED_QUERY_CYPHER_SHELL_PARAMS_OPTIMIZED_ODD, readFile(output));
     }
 
     @Test
@@ -429,6 +459,16 @@ public class ExportCypherTest {
         assertTrue("Should get time greater than 0",((long) r.get("time")) >= 0);
     }
 
+    private void assertResultsOdd(File output, Map<String, Object> r) {
+        assertEquals(7L, r.get("nodes"));
+        assertEquals(1L, r.get("relationships"));
+        assertEquals(13L, r.get("properties"));
+        assertEquals(output == null ? null : output.getAbsolutePath(), r.get("file"));
+        assertEquals("database" + ": nodes(7), rels(1)", r.get("source"));
+        assertEquals("cypher", r.get("format"));
+        assertTrue("Should get time greater than 0",((long) r.get("time")) >= 0);
+    }
+
     static class ExportCypherResults {
 
         static final String EXPECTED_NODES = String.format("BEGIN%n" +
@@ -452,8 +492,8 @@ public class ExportCypherTest {
         static final String EXPECTED_SCHEMA = String.format("BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
                 "CREATE INDEX ON :`Foo`(`name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n");
 
@@ -484,7 +524,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_CLEAN_UP_EMPTY = String.format("BEGIN%n" +
@@ -495,7 +535,7 @@ public class ExportCypherTest {
         static final String EXPECTED_ONLY_SCHEMA_NEO4J_SHELL = String.format("BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
                 "CREATE INDEX ON :`Foo`(`name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n");
 
@@ -505,8 +545,8 @@ public class ExportCypherTest {
                 "COMMIT%n" +
                 "BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n" +
                 "BEGIN%n" +
@@ -516,7 +556,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_CYPHER_DATE = String.format("BEGIN%n" +
@@ -525,8 +565,8 @@ public class ExportCypherTest {
                 "COMMIT%n" +
                 "BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n" +
                 "BEGIN%n" +
@@ -536,7 +576,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_CYPHER_TIME = String.format("BEGIN%n" +
@@ -545,8 +585,8 @@ public class ExportCypherTest {
                 "COMMIT%n" +
                 "BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n" +
                 "BEGIN%n" +
@@ -556,7 +596,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_CYPHER_DURATION = String.format("BEGIN%n" +
@@ -565,8 +605,8 @@ public class ExportCypherTest {
                 "COMMIT%n" +
                 "BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n" +
                 "BEGIN%n" +
@@ -576,67 +616,83 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_CYPHER_LABELS_ASCENDEND = String.format("BEGIN%n" +
                 "CREATE (:`User`:`User0`:`User1`:`User12`:`UNIQUE IMPORT LABEL` {`name`:\"Alan\", `UNIQUE IMPORT ID`:20});%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n" +
                 "BEGIN%n" +
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_NODES_OPTIMIZED_BATCH_SIZE = String.format("BEGIN%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 0, properties: {`born`:date('2018-10-31'), `name`:\"foo\"}}, {`UNIQUE IMPORT ID`: 4, properties: {`born`:date('2017-09-29'), `name`:\"foo2\"}}] as row %n" +
                 "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
-                "UNWIND [{`name`: \"bar\", properties: {`age`:42, `name`:\"bar\"}}, {`name`: \"bar2\", properties: {`age`:44, `name`:\"bar2\"}}] as row %n" +
-                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
-                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
-                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 6, properties: {`age`:99}}] as row %n" +
                 "MERGE (n:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
+                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 3, properties: {`age`:12}}] as row %n" +
                 "MERGE (n:`Bar`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "UNWIND [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}] as row %n" +
+                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_NODES_OPTIMIZED = String.format("BEGIN%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 0, properties: {`born`:date('2018-10-31'), `name`:\"foo\"}}, {`UNIQUE IMPORT ID`: 4, properties: {`born`:date('2017-09-29'), `name`:\"foo2\"}}] as row %n" +
                 "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
-                "UNWIND [{`name`: \"bar\", properties: {`age`:42, `name`:\"bar\"}}, {`name`: \"bar2\", properties: {`age`:44, `name`:\"bar2\"}}] as row %n" +
-                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
-                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
-                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 6, properties: {`age`:99}}] as row %n" +
                 "MERGE (n:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
+                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 3, properties: {`age`:12}}] as row %n" +
                 "MERGE (n:`Bar`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "UNWIND [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}] as row %n" +
+                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_QUERY_NODES_OPTIMIZED = String.format("BEGIN%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 0, properties: {`born`:date('2018-10-31'), `name`:\"foo\"}}, {`UNIQUE IMPORT ID`: 4, properties: {`born`:date('2017-09-29'), `name`:\"foo2\"}}] as row %n" +
                 "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
-                "UNWIND [{`name`: \"bar\", properties: {`age`:42, `name`:\"bar\"}}, {`name`: \"bar2\", properties: {`age`:44, `name`:\"bar2\"}}] as row %n" +
+                "UNWIND [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}] as row %n" +
                 "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_SCHEMA_OPTIMIZED = String.format("BEGIN%n" +
                 "CREATE INDEX ON :`Bar`(`first_name`,`last_name`);%n" +
                 "CREATE INDEX ON :`Foo`(`name`);%n" +
-                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT node.`name` IS UNIQUE;%n" +
-                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`Bar`) ASSERT (node.`name`) IS UNIQUE;%n" +
+                "CREATE CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n" +
                 "SCHEMA AWAIT%n");
 
         static final String EXPECTED_RELATIONSHIPS_OPTIMIZED = String.format("BEGIN%n" +
                 "UNWIND [{start: {`UNIQUE IMPORT ID`: 0}, end: {`name`: \"bar\"}, properties: {`since`:2016}}, {start: {`UNIQUE IMPORT ID`: 4}, end: {`name`: \"bar2\"}, properties: {`since`:2015}}] as row %n" +
-                "MATCH (start:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.start.`UNIQUE IMPORT ID`}), (end:`Bar`{`name`: row.end.`name`})%n" +
+                "MATCH (start:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.start.`UNIQUE IMPORT ID`})%n" +
+                "MATCH (end:`Bar`{`name`: row.end.`name`})%n" +
+                "MERGE (start)-[r:`KNOWS`]->(end) SET r += row.properties;%n" +
+                "COMMIT%n");
+
+        static final String EXPECTED_RELATIONSHIPS_ODD = String.format("BEGIN%n" +
+                "UNWIND [{start: {`UNIQUE IMPORT ID`: 0}, end: {`name`: \"bar\"}, properties: {`since`:2016}}] as row %n" +
+                "MATCH (start:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.start.`UNIQUE IMPORT ID`})%n" +
+                "MATCH (end:`Bar`{`name`: row.end.`name`})%n" +
+                "MERGE (start)-[r:`KNOWS`]->(end) SET r += row.properties;%n" +
+                "COMMIT%n");
+
+        static final String EXPECTED_RELATIONSHIPS_PARAMS_ODD = String.format(":param rows => [{start: {`UNIQUE IMPORT ID`: 0}, end: {`name`: \"bar\"}, properties: {`since`:2016}}]%n" +
+                "BEGIN%n" +
+                "UNWIND $rows AS row%n" +
+                "MATCH (start:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.start.`UNIQUE IMPORT ID`})%n" +
+                "MATCH (end:`Bar`{`name`: row.end.`name`})%n" +
                 "MERGE (start)-[r:`KNOWS`]->(end) SET r += row.properties;%n" +
                 "COMMIT%n");
 
@@ -644,7 +700,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 20000 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String DROP_UNIQUE_OPTIMIZED_BATCH = String.format("BEGIN%n" +
@@ -657,7 +713,7 @@ public class ExportCypherTest {
                 "MATCH (n:`UNIQUE IMPORT LABEL`)  WITH n LIMIT 2 REMOVE n:`UNIQUE IMPORT LABEL` REMOVE n.`UNIQUE IMPORT ID`;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT node.`UNIQUE IMPORT ID` IS UNIQUE;%n" +
+                "DROP CONSTRAINT ON (node:`UNIQUE IMPORT LABEL`) ASSERT (node.`UNIQUE IMPORT ID`) IS UNIQUE;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_NODES_OPTIMIZED_BATCH_SIZE_UNWIND = String.format("BEGIN%n" +
@@ -665,18 +721,58 @@ public class ExportCypherTest {
                 "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
-                "UNWIND [{`name`: \"bar\", properties: {`age`:42, `name`:\"bar\"}}, {`name`: \"bar2\", properties: {`age`:44, `name`:\"bar2\"}}] as row %n" +
-                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
-                "COMMIT%n" +
-                "BEGIN%n" +
-                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
-                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 6, properties: {`age`:99}}] as row %n" +
                 "MERGE (n:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
                 "COMMIT%n" +
                 "BEGIN%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`age`:12}}] as row %n" +
+                "MERGE (n:`Bar`:`Person`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                "BEGIN%n" +
                 "UNWIND [{`UNIQUE IMPORT ID`: 3, properties: {`age`:12}}] as row %n" +
                 "MERGE (n:`Bar`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                "BEGIN%n" +
+                "UNWIND [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}] as row %n" +
+                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
+                "COMMIT%n");
+
+        static final String EXPECTED_NODES_OPTIMIZED_BATCH_SIZE_ODD = String.format("BEGIN%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 0, properties: {`born`:date('2018-10-31'), `name`:\"foo\"}}, {`UNIQUE IMPORT ID`: 1, properties: {`born`:date('2017-09-29'), `name`:\"foo2\"}}] as row %n" +
+                "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                "BEGIN%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 2, properties: {`born`:date('2016-03-12'), `name`:\"foo3\"}}] as row %n" +
+                "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                "BEGIN%n" +
+                "UNWIND [{`UNIQUE IMPORT ID`: 4, properties: {`age`:12}}, {`UNIQUE IMPORT ID`: 5, properties: {`age`:12}}] as row %n" +
+                "MERGE (n:`Bar`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                "BEGIN%n" +
+                "UNWIND [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}] as row %n" +
+                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
+                "COMMIT%n");
+
+        static final String EXPECTED_NODES_OPTIMIZED_PARAMS_BATCH_SIZE_ODD = String.format(":param rows => [{`UNIQUE IMPORT ID`: 0, properties: {`born`:date('2018-10-31'), `name`:\"foo\"}}, {`UNIQUE IMPORT ID`: 1, properties: {`born`:date('2017-09-29'), `name`:\"foo2\"}}]%n" +
+                "BEGIN%n" +
+                "UNWIND $rows AS row%n" +
+                "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                ":param rows => [{`UNIQUE IMPORT ID`: 2, properties: {`born`:date('2016-03-12'), `name`:\"foo3\"}}]%n" +
+                "BEGIN%n" +
+                "UNWIND $rows AS row%n" +
+                "MERGE (n:`Foo`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                ":param rows => [{`UNIQUE IMPORT ID`: 4, properties: {`age`:12}}, {`UNIQUE IMPORT ID`: 5, properties: {`age`:12}}]%n" +
+                "BEGIN%n" +
+                "UNWIND $rows AS row%n" +
+                "MERGE (n:`Bar`:`UNIQUE IMPORT LABEL`{`UNIQUE IMPORT ID`: row.`UNIQUE IMPORT ID`}) SET n += row.properties;%n" +
+                "COMMIT%n" +
+                ":param rows => [{`name`: \"bar\", properties: {`age`:42}}, {`name`: \"bar2\", properties: {`age`:44}}]%n" +
+                "BEGIN%n" +
+                "UNWIND $rows AS row%n" +
+                "MERGE (n:`Bar`{`name`: row.`name`}) SET n += row.properties;%n" +
                 "COMMIT%n");
 
         static final String EXPECTED_NEO4J_OPTIMIZED = EXPECTED_SCHEMA_OPTIMIZED + EXPECTED_NODES_OPTIMIZED + EXPECTED_RELATIONSHIPS_OPTIMIZED + DROP_UNIQUE_OPTIMIZED;
@@ -691,7 +787,25 @@ public class ExportCypherTest {
 
         static final String EXPECTED_CYPHER_OPTIMIZED_BATCH_SIZE_UNWIND = EXPECTED_SCHEMA_OPTIMIZED + EXPECTED_NODES_OPTIMIZED_BATCH_SIZE_UNWIND + EXPECTED_RELATIONSHIPS_OPTIMIZED + DROP_UNIQUE_OPTIMIZED_BATCH;
 
+        static final String EXPECTED_CYPHER_OPTIMIZED_BATCH_SIZE_ODD = EXPECTED_SCHEMA_OPTIMIZED + EXPECTED_NODES_OPTIMIZED_BATCH_SIZE_ODD + EXPECTED_RELATIONSHIPS_ODD + DROP_UNIQUE_OPTIMIZED_BATCH;
+
+        static final String EXPECTED_CYPHER_SHELL_PARAMS_OPTIMIZED_ODD = EXPECTED_SCHEMA_OPTIMIZED + EXPECTED_NODES_OPTIMIZED_PARAMS_BATCH_SIZE_ODD + EXPECTED_RELATIONSHIPS_PARAMS_ODD + DROP_UNIQUE_OPTIMIZED_BATCH;
+
+
         static final String EXPECTED_QUERY_CYPHER_SHELL_OPTIMIZED_UNWIND = EXPECTED_CYPHER_OPTIMIZED_BATCH_SIZE_UNWIND
+                .replace(NEO4J_SHELL.begin(), CYPHER_SHELL.begin())
+                .replace(NEO4J_SHELL.commit(), CYPHER_SHELL.commit())
+                .replace(NEO4J_SHELL.schemaAwait(), EXPECTED_INDEXES_AWAIT)
+                .replace(NEO4J_SHELL.schemaAwait(), CYPHER_SHELL.schemaAwait());
+
+
+        static final String EXPECTED_QUERY_CYPHER_SHELL_OPTIMIZED_ODD = EXPECTED_CYPHER_OPTIMIZED_BATCH_SIZE_ODD
+                .replace(NEO4J_SHELL.begin(), CYPHER_SHELL.begin())
+                .replace(NEO4J_SHELL.commit(), CYPHER_SHELL.commit())
+                .replace(NEO4J_SHELL.schemaAwait(), EXPECTED_INDEXES_AWAIT)
+                .replace(NEO4J_SHELL.schemaAwait(), CYPHER_SHELL.schemaAwait());
+
+        static final String EXPECTED_QUERY_CYPHER_SHELL_PARAMS_OPTIMIZED_ODD = EXPECTED_CYPHER_SHELL_PARAMS_OPTIMIZED_ODD
                 .replace(NEO4J_SHELL.begin(), CYPHER_SHELL.begin())
                 .replace(NEO4J_SHELL.commit(), CYPHER_SHELL.commit())
                 .replace(NEO4J_SHELL.schemaAwait(), EXPECTED_INDEXES_AWAIT)

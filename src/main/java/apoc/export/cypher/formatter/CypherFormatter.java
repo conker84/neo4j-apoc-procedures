@@ -26,8 +26,8 @@ public interface CypherFormatter {
 
 	String statementForCleanUp(int batchSize);
 
-	void statementForSameNodes(Iterable<Node> node, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter);
+	void statementForNodes(Iterable<Node> node, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter);
 
-	void statementForSameRelationship(Iterable<Relationship> relationship, Map<String, String> uniqueConstraints, Set<String> indexedProperties, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter);
+	void statementForRelationships(Iterable<Relationship> relationship, Map<String, Set<String>> uniqueConstraints, Set<String> indexNames, ExportConfig exportConfig, PrintWriter out, Reporter reporter);
 
 }

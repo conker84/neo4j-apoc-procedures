@@ -1,7 +1,6 @@
 package apoc.export.util;
 
 import apoc.export.cypher.formatter.CypherFormat;
-import apoc.gephi.Gephi;
 import apoc.util.Util;
 
 import java.util.*;
@@ -25,95 +24,46 @@ public class ExportConfig {
     public static final String DEFAULT_QUOTES = ALWAYS_QUOTES;
     private final boolean streamStatements;
 
-    public enum OptimizationType {NONE, UNWIND_BATCH};
-
-    private OptimizationType optimizationType;
-    private int batchSize = DEFAULT_BATCH_SIZE;
-    private int unwindBatchSize = DEFAULT_UNWIND_BATCH_SIZE;
-    private boolean silent = false;
-    private String delim = DEFAULT_DELIM;
+    private int batchSize;
+    private boolean silent;
+    private String delim;
     private String quotes = DEFAULT_QUOTES;
-    private boolean useTypes = false;
+    private boolean useTypes;
     private Set<String> caption;
-    private boolean writeNodeProperties = false;
+    private boolean writeNodeProperties;
     private boolean nodesOfRelationships;
     private ExportFormat format;
     private CypherFormat cypherFormat;
     private final Map<String, Object> config;
     private Map<String, Object> optimizations;
-
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    public boolean isSilent() {
-        return silent;
-    }
-
-    public char getDelimChar() {
-        return delim.charAt(0);
-    }
-
-    public String getDelim() {
-        return delim;
-    }
-
-    public String isQuotes() {
-        return quotes;
-    }
-
-
-    public boolean useTypes() {
-        return useTypes;
-    }
-
-    public ExportFormat getFormat() { return format; }
-
-<<<<<<< HEAD
-    public Set<String> getCaption() { return caption; }
-
-    public CypherFormat getCypherFormat() { return cypherFormat; }
-=======
-    public int getUnwindBatchSize() {
-        return ((Number)getOptimizations().getOrDefault("batchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
-    }
-
-    public CypherFormat getCypherFormat() {
-        return cypherFormat;
-    }
->>>>>>> fixes #998_bis - Add a mode to export.cypher that batches updates
+    public enum OptimizationType {NONE, UNWIND_BATCH, UNWIND_BATCH_PARAMS}
+    private OptimizationType optimizationType;
 
     public ExportConfig(Map<String,Object> config) {
         config = config != null ? config : Collections.emptyMap();
         this.silent = toBoolean(config.getOrDefault("silent",false));
         this.batchSize = ((Number)config.getOrDefault("batchSize", DEFAULT_BATCH_SIZE)).intValue();
-        this.delim = delim(config.getOrDefault("d", String.valueOf(DEFAULT_DELIM)).toString());
+        this.delim = delim(config.getOrDefault("d", DEFAULT_DELIM).toString());
         this.useTypes = toBoolean(config.get("useTypes"));
         this.caption = convertCaption(config.getOrDefault("caption", asList("name", "title", "label", "id")));
         this.nodesOfRelationships = toBoolean(config.get("nodesOfRelationships"));
         this.format = ExportFormat.fromString((String) config.getOrDefault("format", "neo4j-shell"));
         this.cypherFormat = CypherFormat.fromString((String) config.getOrDefault("cypherFormat", "create"));
         this.config = config;
-        this.optimizations = (Map<String, Object>) config.getOrDefault("useOptimizations", Util.map());
         this.streamStatements = toBoolean(config.get("streamStatements")) || toBoolean(config.get("stream"));
         this.writeNodeProperties = toBoolean(config.get("writeNodeProperties"));
-        this.optimizationType = OptimizationType.valueOf(optimizations.getOrDefault("type", OptimizationType.UNWIND_BATCH.toString()).toString().toUpperCase());
         exportQuotes(config);
+        this.optimizations = (Map<String, Object>) config.getOrDefault("useOptimizations", Util.map());
+        this.optimizationType = OptimizationType.valueOf(optimizations.getOrDefault("type", OptimizationType.UNWIND_BATCH.toString()).toString().toUpperCase());
     }
 
     private void exportQuotes(Map<String, Object> config)
     {
         try {
-<<<<<<< HEAD
             this.quotes = (String) config.getOrDefault("quotes", DEFAULT_QUOTES);
 
             if ( !quotes.equals(ALWAYS_QUOTES) && !quotes.equals(NONE_QUOTES) && !quotes.equals(IF_NEEDED_QUUOTES) ) {
                 throw new RuntimeException("The string value of the field quote is not valid");
-=======
-            this.quotes = (String) config.getOrDefault("quotes",DEFAULT_QUOTES_TYPE);
-            if (quotes == null) {
-                quotes = DEFAULT_QUOTES_TYPE;
->>>>>>> fixes #998_bis - Add a mode to export.cypher that batches updates
             }
 
         } catch (ClassCastException e) { // backward compatibility
@@ -132,11 +82,6 @@ public class ExportConfig {
         throw new RuntimeException("Illegal delimiter '"+value+"'");
     }
 
-    public ExportConfig withTypes() {
-        this.useTypes =true;
-        return this;
-    }
-
     public String defaultRelationshipType() {
         return config.getOrDefault("defaultRelationshipType","RELATED").toString();
     }
@@ -151,10 +96,6 @@ public class ExportConfig {
 
     public boolean separateFiles() {
         return toBoolean(config.getOrDefault("separateFiles", false));
-    }
-
-    private ExportFormat format(Object format) {
-        return format != null && format instanceof String ? ExportFormat.fromString((String)format) : ExportFormat.NEO4J_SHELL;
     }
 
     private static Set<String> convertCaption(Object value) {
@@ -176,6 +117,14 @@ public class ExportConfig {
         return Util.toLong(config.getOrDefault("timeoutSeconds",100));
     }
 
+    public int getUnwindBatchSize() {
+        return ((Number)getOptimizations().getOrDefault("batchSize", DEFAULT_UNWIND_BATCH_SIZE)).intValue();
+    }
+
+    public CypherFormat getCypherFormat() {
+        return cypherFormat;
+    }
+
     public Map<String, Object> getOptimizations() {
         return optimizations;
     }
@@ -184,4 +133,31 @@ public class ExportConfig {
         return optimizationType;
     }
 
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    public boolean isSilent() {
+        return silent;
+    }
+
+    public char getDelimChar() {
+        return delim.charAt(0);
+    }
+
+    public String getDelim() {
+        return delim;
+    }
+
+    public String isQuotes() {
+        return quotes;
+    }
+
+    public boolean useTypes() {
+        return useTypes;
+    }
+
+    public ExportFormat getFormat() { return format; }
+
+    public Set<String> getCaption() { return caption; }
 }
