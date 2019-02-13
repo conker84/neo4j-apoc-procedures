@@ -24,12 +24,12 @@ public class ApocConfiguration {
     private static final Map<String, String> PARAM_WHITELIST = new HashMap<>(2);
 
     static {
-        PARAM_WHITELIST.put("dbms.security.allow_csv_import_from_file_urls", "import.file.allow_read_from_filesystem");
-
         // Contains list of all dbms.directories.* settings supported by Neo4j.
         for(String directorySetting : Metrics.NEO4J_DIRECTORY_CONFIGURATION_SETTING_NAMES) {
             PARAM_WHITELIST.put(directorySetting, directorySetting);
         }
+        PARAM_WHITELIST.put("dbms.directories.import", "import.file.directory");
+        PARAM_WHITELIST.put("dbms.security.allow_csv_import_from_file_urls", "import.file.allow_read_from_filesystem");
     }
 
     public static void initialize(GraphDatabaseAPI db) {

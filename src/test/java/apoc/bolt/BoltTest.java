@@ -2,18 +2,19 @@ package apoc.bolt;
 
 import apoc.util.TestUtil;
 import apoc.util.Util;
-import org.junit.*;
-import org.neo4j.driver.internal.InternalIsoDuration;
-import org.neo4j.driver.internal.InternalPoint2D;
-import org.neo4j.driver.internal.InternalPoint3D;
-import org.neo4j.graphdb.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Label;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.harness.ServerControls;
 import org.neo4j.harness.TestServerBuilders;
-import org.neo4j.harness.junit.Neo4jRule;
 import org.neo4j.test.TestGraphDatabaseFactory;
-import org.neo4j.values.storable.DurationValue;
 
-import java.time.*;
+import java.time.LocalTime;
+import java.time.OffsetTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -22,8 +23,6 @@ import java.util.Map;
 import static org.junit.Assert.*;
 import static org.neo4j.driver.v1.Values.isoDuration;
 import static org.neo4j.driver.v1.Values.point;
-import static org.neo4j.values.storable.CoordinateReferenceSystem.*;
-import static org.neo4j.values.storable.Values.pointValue;
 
 /**
  * @author AgileLARUS

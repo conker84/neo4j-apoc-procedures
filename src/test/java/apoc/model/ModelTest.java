@@ -3,8 +3,9 @@ package apoc.model;
 import apoc.ApocConfiguration;
 import apoc.util.TestUtil;
 import apoc.util.Util;
-import org.junit.*;
-import org.junit.rules.TestName;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.neo4j.graphdb.*;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.testcontainers.containers.JdbcDatabaseContainer;
@@ -17,27 +18,32 @@ import java.util.stream.Collectors;
 import static apoc.util.TestUtil.testCall;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assume.assumeNotNull;
 
 public class ModelTest {
 
-    private GraphDatabaseService db;
+    private static GraphDatabaseService db;
 
-    @Rule
-    public TestName testName = new TestName();
+    public static JdbcDatabaseContainer mysql;
 
-    @ClassRule
-    public static JdbcDatabaseContainer mysql = new MySQLContainer().withInitScript("init_mysql.sql");
-
-    @Before
-    public void setUp() throws Exception {
+    @BeforeClass
+    public static void setUp() throws Exception {
         db = TestUtil.apocGraphDatabaseBuilder().newGraphDatabase();
+        TestUtil.ignoreException(() -> {
+            mysql = new MySQLContainer().withInitScript("init_mysql.sql");
+            mysql.start();
+        }, Exception.class);
+        assumeNotNull(mysql);
         ApocConfiguration.initialize((GraphDatabaseAPI)db);
         TestUtil.registerProcedure(db, Model.class);
     }
 
-    @After
-    public void tearDown() {
-        db.shutdown();
+    @AfterClass
+    public static void tearDown() {
+        if (mysql != null) {
+            mysql.stop();
+            db.shutdown();
+        }
     }
 
     @Test

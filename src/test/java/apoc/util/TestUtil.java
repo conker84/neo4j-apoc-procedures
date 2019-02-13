@@ -12,6 +12,7 @@ import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
 import java.net.Socket;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -44,7 +45,7 @@ public class TestUtil {
         });
     }
 
-    private static void printFullStackTrace(Throwable e) {
+    public static void printFullStackTrace(Throwable e) {
         String padding = "";
         while (e != null) {
             if (e.getCause() == null) {
@@ -137,7 +138,11 @@ public class TestUtil {
     }
 
     public static void assumeTravis() {
-        assumeFalse("we're running on travis, so skipping","true".equals(System.getenv("TRAVIS")));
+        assumeFalse("we're running on travis, so skipping", isTravis());
+    }
+
+    public static boolean isTravis() {
+        return "true".equals(System.getenv("TRAVIS"));
     }
 
     public static GraphDatabaseBuilder apocGraphDatabaseBuilder() {
@@ -154,5 +159,9 @@ public class TestUtil {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public static URL getUrlFileName(String filename) {
+        return Thread.currentThread().getContextClassLoader().getResource(filename);
     }
 }

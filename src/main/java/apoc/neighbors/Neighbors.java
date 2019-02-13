@@ -1,16 +1,21 @@
 package apoc.neighbors;
 
-import apoc.result.*;
+import apoc.result.ListResult;
+import apoc.result.LongResult;
+import apoc.result.NodeListResult;
+import apoc.result.NodeResult;
 import org.neo4j.graphdb.*;
-import org.neo4j.graphdb.Node;
 import org.neo4j.helpers.collection.Pair;
-import org.neo4j.procedure.*;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.longlong.LongBitmapDataProvider;
+import org.neo4j.procedure.Context;
+import org.neo4j.procedure.Description;
+import org.neo4j.procedure.Name;
+import org.neo4j.procedure.Procedure;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import java.util.*;
-import java.util.stream.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static apoc.path.RelationshipTypeAndDirections.parse;
 

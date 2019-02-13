@@ -38,20 +38,20 @@ public class ExportGraphML {
     @Description("apoc.import.graphml(file,config) - imports graphml file")
     public Stream<ProgressInfo> file(@Name("file") String fileName, @Name("config") Map<String, Object> config) throws Exception {
         ProgressInfo result =
-        Util.inThread(() -> {
-            ExportConfig exportConfig = new ExportConfig(config);
-            ProgressReporter reporter = new ProgressReporter(null, null, new ProgressInfo(fileName, "file", "graphml"));
-            XmlGraphMLReader graphMLReader = new XmlGraphMLReader(db).reporter(reporter)
-                    .batchSize(exportConfig.getBatchSize())
-                    .relType(exportConfig.defaultRelationshipType())
-                    .nodeLabels(exportConfig.readLabels());
+                Util.inThread(() -> {
+                    ExportConfig exportConfig = new ExportConfig(config);
+                    ProgressReporter reporter = new ProgressReporter(null, null, new ProgressInfo(fileName, "file", "graphml"));
+                    XmlGraphMLReader graphMLReader = new XmlGraphMLReader(db).reporter(reporter)
+                            .batchSize(exportConfig.getBatchSize())
+                            .relType(exportConfig.defaultRelationshipType())
+                            .nodeLabels(exportConfig.readLabels());
 
-            if (exportConfig.storeNodeIds()) graphMLReader.storeNodeIds();
+                    if (exportConfig.storeNodeIds()) graphMLReader.storeNodeIds();
 
 
-            graphMLReader.parseXML(FileUtils.readerFor(fileName));
-            return reporter.getTotal();
-        });
+                    graphMLReader.parseXML(FileUtils.readerFor(fileName));
+                    return reporter.getTotal();
+                });
         return Stream.of(result);
     }
     @Procedure
