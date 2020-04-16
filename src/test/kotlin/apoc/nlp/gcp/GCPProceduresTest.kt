@@ -15,7 +15,7 @@ class GCPProceduresTest {
             On Tuesday, Cabinet Office minister Michael Gove admitted the UK had to go "further, faster" to increase testing.
         """
 
-        val apiKey: String? = System.getenv("API_KEY")
+        val apiKey: String? = System.getenv("GCP_API_KEY")
 
         @ClassRule
         @JvmField

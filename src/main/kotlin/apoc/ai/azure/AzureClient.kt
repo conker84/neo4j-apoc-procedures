@@ -1,37 +1,69 @@
 package apoc.ai.azure
 
-import apoc.ai.dto.AIMapResult
 import apoc.ai.service.AI
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import apoc.result.MapResult
+import apoc.util.JsonUtil
 import org.neo4j.logging.Log
 import java.io.DataOutputStream
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 
-enum class AzureEndpoint(val method: String) {
+private fun convertInput(data: Any): List<Map<String, Any?>> {
+    return when (data) {
+        is Map<*, *> -> convertInputFromMap(data as Map<String, Any>)
+        is Collection<*> -> convertInputFromCollection(data)
+        is String -> convertInputFromMap(mapOf("id" to 1, "text" to data))
+        else -> throw RuntimeException("Class ${data::class.java.name} not supported")
+    }
+}
+
+private fun convertInputFromCollection(data: Collection<*>): List<Map<String, Any?>> {
+    if (data.isEmpty()) {
+        return emptyList()
+    }
+    return data.filterNotNull().mapIndexed { index, element ->
+        when (element) {
+            is Map<*, *> -> element as Map<String, Any>
+            is String -> mapOf("id" to index.toString(), "text" to element)
+            else -> throw RuntimeException("Class ${element::class.java.name} not supported")
+        }
+    }
+}
+
+private fun convertInputFromMap(data: Map<String, Any>): List<Map<String, Any?>> {
+    if (data.isEmpty()) {
+        return emptyList()
+    }
+    return listOf(data)
+}
+
+enum class AzureEndpoint(val method: String,
+                         val createRequest: (Any) -> Map<String, Any> = { data: Any -> mapOf("documents" to convertInput(data)) },
+                         val parseResponse: (Any) -> List<MapResult> = { result: Any -> ((result as Map<String, Any?>)["documents"] as List<Map<String, Any?>>).map { MapResult(it) } }) {
     SENTIMENT("/text/analytics/v2.1/sentiment"),
     KEY_PHRASES("/text/analytics/v2.1/keyPhrases"),
-    VISION("/vision/v2.1/analyze"),
-    ENTITIES("/text/analytics/v2.1/entities")
+    VISION("/vision/v2.1/analyze",
+            { data: Any -> when (data) {
+                is Map<*, *> -> data as Map<String, Any>
+                is String -> mapOf("url" to data)
+                else -> throw RuntimeException("Class ${data::class.java.name} not supported")
+            } },
+            { result: Any -> listOf(((result as Map<String, Any?>).let { MapResult(it) })) }),
+    ENTITIES("/text/analytics/v2.1/entities");
+
+    fun createFullUrl(baseUrl: String, params: Map<String, Any?>): URL {
+        val fullUrl = baseUrl.let { if (it.endsWith("/")) it.substring(0, it.lastIndex) else it } + this.method + params.map { "${it.key}=${it.value}" }
+                .joinToString("&")
+                .also { if (it.isNullOrBlank()) it else "?$it" }
+        return URL(fullUrl)
+    }
 }
 
 class AzureClient(private val baseUrl: String, private val key: String, private val log: Log): AI {
 
-    companion object {
-        @JvmStatic val MAPPER = jacksonObjectMapper()
-    }
-
-    private fun postData(method: String, subscriptionKeyValue: String, data: Any, config: Map<String, Any?> = emptyMap()): List<AIMapResult> {
-        val fullUrl = baseUrl + method + config.map { "${it.key}=${it.value}" }
-                .joinToString("&")
-                .also { if (it.isNullOrBlank()) it else "?$it" }
-        val url = URL(fullUrl)
-        return postData(url, subscriptionKeyValue, data)
-    }
-
-    private fun postData(url: URL, subscriptionKeyValue: String, data: Any): List<AIMapResult> {
-        val connection = url.openConnection() as HttpsURLConnection
+    private fun postData(endpoint: AzureEndpoint, subscriptionKeyValue: String, data: Any, config: Map<String, Any?> = emptyMap()): List<MapResult> {
+        val connection = endpoint.createFullUrl(baseUrl, config).openConnection() as HttpsURLConnection
         connection.requestMethod = "POST"
         connection.setRequestProperty("Ocp-Apim-Subscription-Key", subscriptionKeyValue)
         connection.doOutput = true
@@ -41,52 +73,20 @@ class AzureClient(private val baseUrl: String, private val key: String, private 
                 DataOutputStream(connection.outputStream).use { it.write(data) }
             }
             else -> {
-                connection.setRequestProperty("Content-Type", "text/json")
-                DataOutputStream(connection.outputStream).use { it.write(MAPPER.writeValueAsBytes(mapOf("documents" to convertInput(data)))) }
+                connection.setRequestProperty("Content-Type", "application/json")
+                DataOutputStream(connection.outputStream).use { it.write(JsonUtil.OBJECT_MAPPER.writeValueAsBytes(endpoint.createRequest(data))) }
             }
         }
         return connection.inputStream
-                .use { MAPPER.readValue(it, Any::class.java) }
-                .let {result ->
-                    val documents = (result as Map<String, Any?>)["documents"] as List<Map<String, Any?>>
-                    documents.map { AIMapResult(it as Map<String, Any?>) }
-                }
+                .use { JsonUtil.OBJECT_MAPPER.readValue(it, Any::class.java) }
+                .let { result -> endpoint.parseResponse(result) }
     }
 
-    private fun convertInput(data: Any): List<Map<String, Any?>> {
-        return when (data) {
-            is Map<*, *> -> convertInputFromMap(data as Map<String, Any>)
-            is Collection<*> -> convertInputFromCollection(data)
-            is String -> convertInputFromMap(mapOf("id" to 1, "text" to data))
-            else -> throw java.lang.RuntimeException("Class ${data::class.java.name} not supported")
-        }
-    }
+    override fun entities(data: Any, config: Map<String, Any?>): List<MapResult> = postData(AzureEndpoint.ENTITIES, key, data)
 
-    private fun convertInputFromCollection(data: Collection<*>): List<Map<String, Any?>> {
-        if (data.isEmpty()) {
-            return emptyList()
-        }
-        return data.filterNotNull().mapIndexed { index, element ->
-            when (element) {
-                is Map<*, *> -> element as Map<String, Any>
-                is String -> mapOf("id" to index.toString(), "text" to element)
-                else -> throw java.lang.RuntimeException("Class ${element::class.java.name} not supported")
-            }
-        }
-    }
+    override fun sentiment(data: Any, config: Map<String, Any?>): List<MapResult> = postData(AzureEndpoint.SENTIMENT, key, data)
 
-    private fun convertInputFromMap(data: Map<String, Any>): List<Map<String, Any?>> {
-        if (data.isEmpty()) {
-            return emptyList()
-        }
-        return listOf(data)
-    }
+    override fun keyPhrases(data: Any, config: Map<String, Any?>): List<MapResult> = postData(AzureEndpoint.KEY_PHRASES, key, data)
 
-    override fun entities(data: Any, config: Map<String, Any?>): List<AIMapResult> = postData(AzureEndpoint.ENTITIES.method, key, data)
-
-    override fun sentiment(data: Any, config: Map<String, Any?>): List<AIMapResult> = postData(AzureEndpoint.SENTIMENT.method, key, data)
-
-    override fun keyPhrases(data: Any, config: Map<String, Any?>): List<AIMapResult> = postData(AzureEndpoint.KEY_PHRASES.method, key, data)
-
-    override fun vision(data: Any, config: Map<String, Any?>): List<AIMapResult> = postData(AzureEndpoint.VISION.method, key, data, config)
+    override fun vision(data: Any, config: Map<String, Any?>): List<MapResult> = postData(AzureEndpoint.VISION, key, data, config)
 }

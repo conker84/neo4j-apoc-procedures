@@ -1,8 +1,12 @@
 package apoc.ai.azure
 
-import apoc.ai.dto.AIMapResult
+import apoc.result.MapResult
 import org.neo4j.logging.Log
-import org.neo4j.procedure.*
+import org.neo4j.procedure.Context
+import org.neo4j.procedure.Description
+import org.neo4j.procedure.Mode
+import org.neo4j.procedure.Name
+import org.neo4j.procedure.Procedure
 import java.util.stream.Stream
 
 class AzureProcedures {
@@ -10,36 +14,36 @@ class AzureProcedures {
     @JvmField
     var log: Log? = null
 
-//    @Procedure(value = "apoc.ai.azure.sentiment", mode = Mode.READ)
-//    @Description("Provides a sentiment analysis for provided text")
-//    fun sentiment(@Name("url") url: String,
-//                  @Name("key") key: String,
-//                  @Name("data") data: Any,
-//                  @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
-//            : Stream<AIMapResult> = AzureClient(url, key, log!!).sentiment(data, config).stream()
-//
-//    @Procedure(value = "apoc.ai.azure.entities", mode = Mode.READ)
-//    @Description("Provides a entity analysis for provided text")
-//    fun entities(@Name("url") url: String,
-//                 @Name("key") key: String,
-//                 @Name("data") data: Any,
-//                 @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
-//            : Stream<AIMapResult> = AzureClient(url, key, log!!).entities(data, config).stream()
-//
-//    @Procedure(value = "apoc.ai.azure.keyPhrases", mode = Mode.READ)
-//    @Description("Provides a entity analysis for provided text")
-//    fun keyPhrases(@Name("url") url: String,
-//                   @Name("key") key: String,
-//                   @Name("data") data: Any,
-//                   @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
-//            : Stream<AIMapResult> = AzureClient(url, key, log!!).keyPhrases(data, config).stream()
-//
-//    @Procedure(value = "apoc.ai.azure.vision", mode = Mode.READ)
-//    @Description("Provides a entity analysis for provided text")
-//    fun vision(@Name("url") url: String,
-//               @Name("key") key: String,
-//               @Name("data") data: Any,
-//               @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
-//            : Stream<AIMapResult> = AzureClient(url, key, log!!).vision(data, config).stream()
+    @Procedure(value = "apoc.ai.azure.sentiment", mode = Mode.READ)
+    @Description("Provides a sentiment analysis for provided text")
+    fun sentiment(@Name("url") url: String,
+                  @Name("key") key: String,
+                  @Name("data") data: Any,
+                  @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
+            : Stream<MapResult> = AzureClient(url, key, log!!).sentiment(data, config).stream()
+
+    @Procedure(value = "apoc.ai.azure.entities", mode = Mode.READ)
+    @Description("Provides a entity analysis for provided text")
+    fun entities(@Name("url") url: String,
+                 @Name("key") key: String,
+                 @Name("data") data: Any,
+                 @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
+            : Stream<MapResult> = AzureClient(url, key, log!!).entities(data, config).stream()
+
+    @Procedure(value = "apoc.ai.azure.keyPhrases", mode = Mode.READ)
+    @Description("Provides a entity analysis for provided text")
+    fun keyPhrases(@Name("url") url: String,
+                   @Name("key") key: String,
+                   @Name("data") data: Any,
+                   @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
+            : Stream<MapResult> = AzureClient(url, key, log!!).keyPhrases(data, config).stream()
+
+    @Procedure(value = "apoc.ai.azure.vision", mode = Mode.READ)
+    @Description("Provides a entity analysis for provided text")
+    fun vision(@Name("url") url: String,
+               @Name("key") key: String,
+               @Name("data") data: Any,
+               @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
+            : Stream<MapResult> = AzureClient(url, key, log!!).vision(data, config).stream()
 
 }

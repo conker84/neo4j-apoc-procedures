@@ -127,7 +127,7 @@ class GCPProcedures {
 //    @Description("Analyzes the sentiment of the provided text.")
 //    fun sentimentStream(@Name("data") data: Any,
 //                  @Name(value = "config", defaultValue = "{}") config: Map<String, Any>)
-//            : Stream<AIMapResult> = Stream.of(GCPClient(config["key"].toString(), log!!).sentiment(data, config))
+//            : Stream<MapResult> = Stream.of(GCPClient(config["key"].toString(), log!!).sentiment(data, config))
 
     private fun createRelationships(node: VirtualNode, nodes: MutableSet<Node>, relationshipType: RelationshipType) =
             sequence {
