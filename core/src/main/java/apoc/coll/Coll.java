@@ -59,6 +59,7 @@ public class Coll {
         return list.stream().map(i -> {
                     double value = sum.addAndGet(i.doubleValue());
                     if (value == sum.longValue()) return sum.longValue();
+            System.out.println("value = " + value);
                     return value;
                 }).collect(Collectors.toList());
     }
