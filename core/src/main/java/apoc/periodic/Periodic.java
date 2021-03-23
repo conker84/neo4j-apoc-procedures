@@ -247,7 +247,7 @@ public class Periodic {
             @Name("cypherIterate") String cypherIterate,
             @Name("cypherAction") String cypherAction,
             @Name("config") Map<String,Object> config) {
-        log.info("Executing iterate");
+        log.info("Executing iterate 1");
         validateQuery(cypherIterate);
 
         long batchSize = Util.toLong(config.getOrDefault("batchSize", 10000));
