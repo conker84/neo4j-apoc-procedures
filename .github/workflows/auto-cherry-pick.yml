@@ -1,0 +1,22 @@
+name: APOC Auto Cherry Picking
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - '4.1-test-cherry-pick'
+jobs:
+  release_pull_request:
+    runs-on: ubuntu-latest
+    name: release_pull_request
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v1
+      - name: Create PR to branch
+        uses: gorillio/github-action-cherry-pick@master
+        with:
+          pr_branch: '4.2-test-cherry-pick'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          #          GITBOT_EMAIL: <BOT_EMAIL>
+          DRY_RUN: false
