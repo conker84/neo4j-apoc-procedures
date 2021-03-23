@@ -56,6 +56,7 @@ public class Coll {
     public List<Number> runningTotal(@Name("list") List<Number> list) {
         if (list == null || list.isEmpty()) return null;
         AtomicDouble sum = new AtomicDouble();
+        System.out.println("sum = " + sum);
         return list.stream().map(i -> {
                     double value = sum.addAndGet(i.doubleValue());
                     if (value == sum.longValue()) return sum.longValue();
