@@ -63,12 +63,6 @@ public class Coll {
                 }).collect(Collectors.toList());
     }
 
-    @UserFunction
-    @Description("apoc.coll.test() - returns 'test'")
-    public String test() {
-        return "test";
-    }
-
     @Procedure
     @Description("apoc.coll.zipToRows(list1,list2) - creates pairs like zip but emits one row per pair")
     public Stream<ListResult> zipToRows(@Name("list1") List<Object> list1, @Name("list2") List<Object> list2) {
