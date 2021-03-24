@@ -10,8 +10,8 @@ jobs:
       fail-fast: false
       matrix:
         target-branch: [
-          {name: '4.2-test-cherry-pick', comment: '840180673'},
-          {name: '4.3-test-cherry-pick', comment: '840180215'}
+          {name: '4.2-test-cherry-pick', comment: '806224017'},
+          {name: '4.3-test-cherry-pick', comment: '806224382'}
         ]
     runs-on: ubuntu-latest
     name: release_pull_request
