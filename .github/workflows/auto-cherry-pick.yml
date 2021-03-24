@@ -5,17 +5,21 @@ on:
     branches:
       - '4.1-test-cherry-pick'
 jobs:
-  release_pull_request:
+  cherry-pick:
+    strategy:
+      fail-fast: false
+      matrix:
+        target-branch: ['4.2-test-cherry-pick', '4.3-test-cherry-pick']
     runs-on: ubuntu-latest
     name: release_pull_request
     if: github.event.pull_request.merged == true
     steps:
       - name: checkout
         uses: actions/checkout@v1
-      - name: Create PR to branch
+      - name: Create PR to branch ${{ matrix.target-branch }}
         uses: gorillio/github-action-cherry-pick@master
         with:
-          pr_branch: '4.2-test-cherry-pick'
+          pr_branch: ${{ matrix.target-branch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           #          GITBOT_EMAIL: <BOT_EMAIL>
