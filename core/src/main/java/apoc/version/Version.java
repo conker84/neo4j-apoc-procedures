@@ -15,4 +15,10 @@ public class Version {
     public String version() {
         return Version.class.getPackage().getImplementationVersion();
     }
+
+    @UserFunction("apoc.test")
+    @Description("RETURN apoc.test() | return the current APOC installed version")
+    public String test() {
+        return "test";
+    }
 }
