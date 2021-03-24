@@ -33,4 +33,4 @@ jobs:
         with:
           comment-id: ${{ matrix.target-branch.comment }}
           body: |
-            - `git cherry-pick ${GITHUB_SHA}`
+            - `git cherry-pick ${{ github.sha }}`
