@@ -19,6 +19,6 @@ public class Version {
     @UserFunction("apoc.test")
     @Description("RETURN apoc.test() | return test")
     public String test() {
-        return "test";
+        return "test1";
     }
 }
